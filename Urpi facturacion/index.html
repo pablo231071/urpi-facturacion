@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>URPI · Facturación CEAR</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0f1c2e;--navy2:#1a2d45;--orange:#e8601a;--orange2:#ff7440;
+  --cream:#f7f4ef;--cream2:#ede9e1;--white:#ffffff;
+  --gray:#6b7a8d;--gray2:#c2cad4;--gray3:#e8ecf0;
+  --green:#1e6b3a;--red:#b91c1c;--blue:#1d4ed8;
+  --shadow:0 1px 4px rgba(0,0,0,0.08);--r:8px;
+}
+body{font-family:'Inter',sans-serif;font-size:13px;background:var(--cream);color:var(--navy);min-height:100vh}
+a{color:var(--orange)}
+
+/* LAYOUT */
+.wrap{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* SIDEBAR */
+.sidebar{background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.logo-txt{font-size:17px;font-weight:600;letter-spacing:-0.3px}
+.logo-txt span{color:var(--orange)}
+.logo-sub{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.q-panel{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.q-panel label{font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:5px}
+.q-panel select{width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:5px 8px;border-radius:var(--r);font-size:11px;font-family:'Inter',sans-serif;margin-bottom:4px;cursor:pointer}
+.q-panel select option{background:var(--navy2);color:#fff}
+.q-range{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--orange2);margin-top:4px}
+.nav-section{padding:10px 0 4px}
+.nav-label{font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;padding:6px 16px 3px}
+.nav-btn{display:flex;align-items:center;gap:9px;width:100%;padding:9px 16px;border:none;background:none;color:rgba(255,255,255,0.6);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;text-align:left;transition:all 0.12s;border-left:2px solid transparent}
+.nav-btn:hover{background:rgba(255,255,255,0.07);color:#fff}
+.nav-btn.active{background:rgba(232,96,26,0.15);color:#fff;border-left-color:var(--orange);font-weight:500}
+.nav-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.nav-cnt{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;background:rgba(255,255,255,0.1);padding:1px 6px;border-radius:10px}
+.sidebar-footer{margin-top:auto;padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);font-size:10px;color:rgba(255,255,255,0.25);font-family:'JetBrains Mono',monospace}
+
+/* MAIN */
+.main{padding:24px;max-width:960px}
+.page{display:none}.page.on{display:block}
+.page-hdr{margin-bottom:20px}
+.page-title{font-size:20px;font-weight:600;letter-spacing:-0.3px;margin-bottom:3px}
+.page-sub{font-size:12px;color:var(--gray)}
+
+/* CARDS */
+.card{background:var(--white);border:1px solid var(--gray3);border-radius:var(--r);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card-title{font-size:11px;font-weight:500;color:var(--gray);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:12px}
+
+/* FORMS */
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label,.flabel{font-size:11px;color:var(--gray);font-weight:500}
+input[type=text],input[type=date],input[type=number],select,textarea{
+  width:100%;padding:7px 10px;border:1px solid var(--gray3);border-radius:var(--r);
+  font-family:'Inter',sans-serif;font-size:12px;color:var(--navy);background:var(--white);
+  transition:border-color 0.12s
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+
+/* BUTTONS */
+.btn{padding:7px 14px;border-radius:var(--r);font-size:12px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;border:1px solid var(--gray3);background:var(--white);color:var(--navy);transition:all 0.12s}
+.btn:hover{background:var(--cream);border-color:var(--gray2)}
+.btn-primary{background:var(--orange);color:#fff;border-color:var(--orange)}
+.btn-primary:hover{background:var(--orange2);border-color:var(--orange2)}
+.btn-dark{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-dark:hover{background:var(--navy2)}
+.btn-danger{color:var(--red);border-color:#fecaca}
+.btn-danger:hover{background:#fef2f2}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-row{display:flex;gap:8px;margin-top:12px}
+.btn-row.right{justify-content:flex-end}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500}
+.b-adulto{background:#dbeafe;color:#1e40af}
+.b-menor{background:#fef3c7;color:#92400e}
+.b-bebe{background:#d1fae5;color:#065f46}
+.b-cabeza{background:var(--navy);color:#fff}
+.b-picnic{background:#fee2e2;color:#991b1b}
+.b-snack{background:#ede9fe;color:#4c1d95}
+.b-min{background:#f0fdf4;color:#14532d}
+
+/* MSGS */
+.msg{padding:9px 13px;border-radius:var(--r);font-size:12px;margin-bottom:12px;border:1px solid transparent}
+.msg-ok{background:#f0fdf4;color:var(--green);border-color:#bbf7d0}
+.msg-err{background:#fef2f2;color:var(--red);border-color:#fecaca}
+.msg-info{background:#eff6ff;color:var(--blue);border-color:#bfdbfe}
+.msg-warn{background:#fffbeb;color:#92400e;border-color:#fde68a}
+
+/* DETECT BOX */
+.detect-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--r);padding:10px 13px;margin-bottom:12px;font-size:12px;color:var(--blue)}
+
+/* PERSONA PREVIEW */
+.pprev{border:1px solid var(--gray3);border-radius:var(--r);padding:12px;margin-bottom:8px;background:var(--cream)}
+.pprev-top{display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end}
+.pprev-ext{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--gray)}
+.pprev-ext label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.pprev-ext input[type=checkbox]{width:auto;cursor:pointer}
+.pprev-ext input[type=number]{width:54px;padding:3px 6px;font-size:11px}
+
+/* HUESPED ROWS */
+.hrow{border:1px solid var(--gray3);border-radius:var(--r);padding:11px 13px;margin-bottom:7px;background:var(--white);transition:border-color 0.12s}
+.hrow:hover{border-color:var(--gray2)}
+.hrow.cab{border-left:3px solid var(--navy);border-radius:0 var(--r) var(--r) 0}
+.hrow.men{border-left:3px solid #d97706;border-radius:0 var(--r) var(--r) 0}
+.hrow.beb{border-left:3px solid #059669;border-radius:0 var(--r) var(--r) 0}
+.hrow-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.hrow-name{font-weight:500;font-size:12px}
+.hrow-meta{font-size:10px;color:var(--gray);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.hrow-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.hrow-acts{display:flex;gap:5px;flex-shrink:0}
+
+/* HOSTAL SECTION */
+.hsect{margin-bottom:16px}
+.hhead{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--navy);color:#fff;border-radius:var(--r) var(--r) 0 0;font-size:12px;font-weight:500}
+.htotal{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--orange2)}
+.hbody{border:1px solid var(--gray3);border-top:none;border-radius:0 0 var(--r) var(--r);overflow:hidden;padding:8px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat{background:var(--white);border:1px solid var(--gray3);border-radius:var(--r);padding:12px;box-shadow:var(--shadow)}
+.stat-v{font-size:24px;font-weight:600;letter-spacing:-0.5px;line-height:1}
+.stat-l{font-size:10px;color:var(--gray);margin-top:4px;font-weight:500}
+.stat.accent{background:var(--navy);border-color:var(--navy)}
+.stat.accent .stat-v{color:var(--orange2)}
+.stat.accent .stat-l{color:rgba(255,255,255,0.4)}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray3);color:var(--gray);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap}
+.tbl td{padding:6px 8px;border-bottom:1px solid var(--gray3);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--cream)}
+.tbl .mono{font-family:'JetBrains Mono',monospace;font-size:10px}
+.tbl .right{text-align:right}
+.tbl .bold{font-weight:500}
+.tbl .tot-row td{background:var(--navy);color:#fff;font-weight:500}
+.tbl .tot-row .mono{color:var(--orange2)}
+.tbl-wrap{overflow-x:auto}
+
+/* FESTIVOS */
+.festivos-wrap{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:8px;background:var(--cream);border-radius:var(--r);border:1px solid var(--gray3);margin-bottom:10px}
+.fpill{display:inline-flex;align-items:center;gap:6px;background:var(--white);border:1px solid var(--gray3);border-radius:20px;padding:4px 10px;font-size:11px;font-family:'JetBrains Mono',monospace}
+.fpill button{background:none;border:none;cursor:pointer;color:var(--gray);font-size:14px;line-height:1;padding:0 1px}
+.fpill button:hover{color:var(--red)}
+
+/* EMPTY */
+.empty{text-align:center;padding:36px 20px;color:var(--gray)}
+.empty-icon{font-size:28px;margin-bottom:8px}
+.empty-txt{font-size:12px}
+
+/* TIP */
+.tip{font-size:11px;color:var(--gray);background:var(--cream);padding:9px 12px;border-radius:var(--r);border:1px solid var(--gray3);margin-top:10px}
+
+/* DIVIDER */
+.div{height:1px;background:var(--gray3);margin:14px 0}
+
+/* GEN RESULT */
+.gen-fact-row{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--gray3);font-size:12px}
+.gen-fact-row:last-child{border-bottom:none}
+.gen-total{display:flex;justify-content:space-between;padding:10px 12px;background:var(--navy);color:#fff;border-radius:0 0 var(--r) var(--r);font-weight:500;font-size:12px}
+.gen-total span:last-child{font-family:'JetBrains Mono',monospace;color:var(--orange2)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-txt">URPI <span>·</span> CEAR</div>
+    <div class="logo-sub">Sistema de facturación</div>
+  </div>
+
+  <div class="q-panel">
+    <label>Quincena activa</label>
+    <select id="sQ" onchange="cambiarQ()">
+      <option value="1">1ª quincena (1-15)</option>
+      <option value="2" selected>2ª quincena (16-fin)</option>
+    </select>
+    <select id="sM" onchange="cambiarQ()">
+      <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+      <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+      <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+      <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+    </select>
+    <select id="sA" onchange="cambiarQ()">
+      <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+    </select>
+    <div class="q-range" id="qRange">—</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Entrada de datos</div>
+    <button class="nav-btn active" data-page="correos" onclick="nav(this)">
+      <span class="nav-icon">✉</span> Correos CEAR
+    </button>
+    <button class="nav-btn" data-page="manual" onclick="nav(this)">
+      <span class="nav-icon">+</span> Entrada manual
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Gestión</div>
+    <button class="nav-btn" data-page="huespedes" onclick="nav(this)">
+      <span class="nav-icon">◉</span> Huéspedes
+      <span class="nav-cnt" id="nCnt">0</span>
+    </button>
+    <button class="nav-btn" data-page="festivos" onclick="nav(this)">
+      <span class="nav-icon">◈</span> Festivos
+      <span class="nav-cnt" id="fCnt">0</span>
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Facturación</div>
+    <button class="nav-btn" data-page="resumen" onclick="nav(this)">
+      <span class="nav-icon">≡</span> Resumen
+    </button>
+    <button class="nav-btn" data-page="generar" onclick="nav(this)">
+      <span class="nav-icon">↓</span> Generar Excel
+    </button>
+    <button class="nav-btn" data-page="cerrar" onclick="nav(this)">
+      <span class="nav-icon">→</span> Cerrar quincena
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Sistema</div>
+    <button class="nav-btn" data-page="importar" onclick="nav(this)">
+      <span class="nav-icon">↑</span> Importar facturas
+    </button>
+    <button class="nav-btn" data-page="config" onclick="nav(this)">
+      <span class="nav-icon">⚙</span> Configuración
+    </button>
+  </div>
+
+  <div class="sidebar-footer" id="sfooter">—</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- CORREOS -->
+<div class="page on" id="p-correos">
+  <div class="page-hdr">
+    <div class="page-title">Correos CEAR</div>
+    <div class="page-sub">Pega el texto del correo de inicio o fin de estancia y el sistema lo interpreta</div>
+  </div>
+  <div id="msg-correos"></div>
+
+  <div class="card">
+    <div class="card-title">Texto del correo</div>
+    <textarea id="txtCorreo" placeholder="Pega aquí el correo de CEAR (inicio o fin de estancia)..."></textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="document.getElementById('txtCorreo').value=''">Limpiar</button>
+      <button class="btn btn-primary" onclick="procesarCorreo()">Interpretar correo →</button>
+    </div>
+  </div>
+
+  <div id="prevArea" style="display:none">
+    <div class="card">
+      <div class="card-title">Datos detectados — revisa y confirma</div>
+      <div id="detectMsg" class="detect-box"></div>
+      <div class="g3" style="margin-bottom:12px">
+        <div class="fg"><label>Tipo de movimiento</label>
+          <select id="pTipo"><option value="INICIO">Inicio de estancia</option><option value="FIN">Fin de estancia</option></select>
+        </div>
+        <div class="fg"><label>Hostal</label>
+          <select id="pHostal">
+            <option>Mencey</option><option>La Molina</option><option>La Hostería</option>
+            <option>Milema</option><option>Casa Lima</option><option>María Cristina</option>
+          </select>
+        </div>
+        <div class="fg"><label>Fecha</label><input type="date" id="pFecha"></div>
+      </div>
+      <div id="personasPrev"></div>
+      <div class="btn-row right">
+        <button class="btn" onclick="cancelarPrev()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmar()">Confirmar y añadir →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MANUAL -->
+<div class="page" id="p-manual">
+  <div class="page-hdr">
+    <div class="page-title">Entrada manual</div>
+    <div class="page-sub">Añade o edita un huésped directamente sin correo</div>
+  </div>
+  <div id="msg-manual"></div>
+  <div class="card">
+    <div class="g3" style="margin-bottom:10px">
+      <div class="fg"><label>Tipo</label>
+        <select id="mTipo"><option value="INICIO">Inicio de estancia</option><option value="FIN">Fin de estancia</option></select>
+      </div>
+      <div class="fg"><label>Hostal</label>
+        <select id="mHostal">
+          <option>Mencey</option><option>La Molina</option><option>La Hostería</option>
+          <option>Milema</option><option>Casa Lima</option><option>María Cristina</option>
+        </select>
+      </div>
+      <div class="fg"><label>Fecha</label><input type="date" id="mFecha"></div>
+    </div>
+    <div class="g3" style="margin-bottom:10px">
+      <div class="fg" style="grid-column:span 2">
+        <label>Nombre completo</label>
+        <input type="text" id="mNombre" placeholder="NOMBRE APELLIDO APELLIDO">
+      </div>
+      <div class="fg"><label>Fecha de nacimiento</label><input type="date" id="mFnac"></div>
+    </div>
+    <div class="g4" style="margin-bottom:12px">
+      <div class="fg"><label>Cabeza de familia</label>
+        <select id="mCabeza"><option value="no">No</option><option value="si">Sí</option></select>
+      </div>
+      <div class="fg"><label>Picnic de salida</label>
+        <select id="mPicnic"><option value="no">No</option><option value="si">Sí</option></select>
+      </div>
+      <div class="fg"><label>Min iniciación (días)</label><input type="number" id="mMin" value="0" min="0"></div>
+      <div class="fg"><label>Snack escolar (días)</label><input type="number" id="mSnack" value="0" min="0"></div>
+    </div>
+    <button class="btn btn-dark" onclick="addManual()">Añadir huésped</button>
+  </div>
+</div>
+
+<!-- HUESPEDES -->
+<div class="page" id="p-huespedes">
+  <div class="page-hdr">
+    <div class="page-title">Huéspedes registrados</div>
+    <div class="page-sub" id="hSub">Lista de huéspedes activos en la quincena</div>
+  </div>
+  <div id="hContent"></div>
+</div>
+
+<!-- FESTIVOS -->
+<div class="page" id="p-festivos">
+  <div class="page-hdr">
+    <div class="page-title">Festivos de la quincena</div>
+    <div class="page-sub">Los días festivos no computan como días de snack escolar</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Añadir festivo</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Fecha del festivo</label><input type="date" id="fFecha"></div>
+      <div class="fg"><label>Descripción (opcional)</label><input type="text" id="fDesc" placeholder="Ej: Día de Canarias"></div>
+    </div>
+    <button class="btn btn-primary" onclick="addFestivo()">Añadir festivo</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Festivos registrados</div>
+    <div class="festivos-wrap" id="fLista"></div>
+    <div class="tip">Los sábados y domingos se excluyen automáticamente del cálculo de snack escolar. Solo añade aquí los festivos adicionales.</div>
+  </div>
+</div>
+
+<!-- RESUMEN -->
+<div class="page" id="p-resumen">
+  <div class="page-hdr">
+    <div class="page-title">Resumen de facturación</div>
+    <div class="page-sub">Vista previa de importes por hostal antes de generar el Excel</div>
+  </div>
+  <div id="rContent"></div>
+</div>
+
+<!-- GENERAR -->
+<div class="page" id="p-generar">
+  <div class="page-hdr">
+    <div class="page-title">Generar facturas Excel</div>
+    <div class="page-sub">Configura los números de factura y descarga el archivo con el formato exacto</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Numeración y tarifas</div>
+    <div class="g4" style="margin-bottom:10px">
+      <div class="fg"><label>Nº factura inicial</label><input type="number" id="cfgNum" value="3809"></div>
+      <div class="fg"><label>Año (2 dígitos)</label><input type="number" id="cfgAno" value="26"></div>
+      <div class="fg"><label>Tarifa diaria (€)</label><input type="number" id="cfgTar" value="40" step="0.01"></div>
+      <div class="fg"><label>IGIC (%)</label><input type="number" id="cfgIgic" value="7" step="0.1"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>Min iniciación (€/día)</label><input type="number" id="cfgMin" value="4.59" step="0.01"></div>
+      <div class="fg"><label>Snack escolar (€/día)</label><input type="number" id="cfgSnack" value="2" step="0.01"></div>
+      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="4.67" step="0.01"></div>
+    </div>
+    <div class="btn-row right" style="margin-top:14px">
+      <button class="btn btn-dark" onclick="verPreview()">Vista previa</button>
+      <button class="btn btn-primary" onclick="generarExcel()">Generar y descargar Excel →</button>
+    </div>
+  </div>
+  <div id="genPreview"></div>
+  <div id="genResult"></div>
+</div>
+
+<!-- CONFIG -->
+<div class="page" id="p-config">
+  <div class="page-hdr">
+    <div class="page-title">Configuración</div>
+    <div class="page-sub">Ajustes generales del sistema</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Datos de la empresa</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Email que aparece en facturas</label><input type="text" id="cfgEmail" value="pablosarria@urpihospedajes.com"></div>
+      <div class="fg"><label>Teléfono</label><input type="text" id="cfgTel" value="00 34 822 098 235"></div>
+    </div>
+    <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Datos guardados (localStorage)</div>
+    <div style="font-size:11px;color:var(--gray);font-family:'JetBrains Mono',monospace;margin-bottom:12px" id="storageInfo">—</div>
+    <div class="btn-row">
+      <button class="btn btn-danger btn-sm" onclick="limpiarQuincena()">Limpiar quincena actual</button>
+      <button class="btn btn-sm" onclick="exportarJSON()">Exportar datos JSON</button>
+    </div>
+    <div class="tip" style="margin-top:10px">Los datos se guardan automáticamente en este navegador. Si cambias de ordenador o navegador, los datos no estarán disponibles.</div>
+  </div>
+</div>
+
+
+<!-- IMPORTAR FACTURAS -->
+<div class="page" id="p-importar">
+  <div class="page-hdr">
+    <div class="page-title">Importar facturas anteriores</div>
+    <div class="page-sub">Sube las facturas Excel de la última quincena para cargar los huéspedes activos como base de partida</div>
+  </div>
+  <div id="msg-importar"></div>
+  <div class="card">
+    <div class="card-title">Subir archivos Excel (.xlsx)</div>
+    <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Puedes subir varias facturas a la vez (una por hostal). El sistema leerá los huéspedes y los cargará como activos en la quincena actual.</p>
+    <div style="border:2px dashed var(--gray3);border-radius:var(--r);padding:24px;text-align:center;cursor:pointer;transition:border-color 0.15s" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--orange)'" ondragleave="this.style.borderColor='var(--gray3)'" ondrop="handleDrop(event)">
+      <div style="font-size:24px;margin-bottom:8px">📂</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:4px">Arrastra los archivos aquí o haz clic para seleccionar</div>
+      <div style="font-size:11px;color:var(--gray)">Acepta múltiples archivos .xlsx</div>
+      <input type="file" id="fileInput" accept=".xlsx" multiple style="display:none" onchange="importarExcels(this.files)">
+    </div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="chkLimpiar" checked>
+        Limpiar huéspedes actuales antes de importar
+      </label>
+    </div>
+  </div>
+  <div id="importResult"></div>
+</div>
+
+<!-- CERRAR QUINCENA -->
+<div class="page" id="p-cerrar">
+  <div class="page-hdr">
+    <div class="page-title">Cerrar quincena</div>
+    <div class="page-sub">Cierra la quincena actual y prepara la siguiente con los huéspedes que continúan</div>
+  </div>
+  <div id="msg-cerrar"></div>
+  <div class="card">
+    <div class="card-title">Resumen de la quincena actual</div>
+    <div id="cerrarResumen"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Siguiente quincena</div>
+    <div id="cerrarSiguiente" style="margin-bottom:12px"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="cerrarQuincena()">Cerrar y pasar a la siguiente →</button>
+    </div>
+    <div class="tip" style="margin-top:10px">Los huéspedes sin fecha de salida se traspasarán automáticamente a la siguiente quincena. Los que tienen fecha de salida en esta quincena no se traspasan.</div>
+  </div>
+</div>
+</div><!-- /main -->
+</div><!-- /wrap -->
+
+<script>
+const MESES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const HOSTALES={
+  'Mencey':{dir:'Calle Mencey Bentenuya, 2 38008 Santa Cruz de Tenerife',cod:'VI_Mencey'},
+  'La Molina':{dir:'Avda. Buenos Aires, 44 38003 Santa Cruz de Tenerife',cod:'VI_La Molina'},
+  'La Hostería':{dir:'Calle Simón Bolívar, 4 38007 Santa Cruz de Tenerife',cod:'VI_La Hostería'},
+  'Milema':{dir:'Calle Simón Bolívar, 3 38007 Santa Cruz de Tenerife',cod:'VI_Milema'},
+  'Casa Lima':{dir:'Alfredo Martín Reyes, 7 35400 Arucas (Gran Canaria)',cod:'VI_Casa Lima'},
+  'María Cristina':{dir:'Calle María Cristina, 22 38003 Santa Cruz de Tenerife',cod:'VI_María Cristina'}
+};
+const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','UCRANIA'];
+const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION'];
+
+let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
+
+function storKey(){return `urpi_${S.qAno}_${S.qMes}_${S.qTipo}`;}
+function guardar(){
+  try{localStorage.setItem(storKey(),JSON.stringify({huespedes:S.huespedes,festivos:S.festivos}));
+  localStorage.setItem('urpi_config',JSON.stringify(S.config));}catch(e){}
+  actualizarUI();
+}
+function cargar(){
+  try{
+    const d=localStorage.getItem(storKey());
+    if(d){const p=JSON.parse(d);S.huespedes=p.huespedes||[];S.festivos=p.festivos||[];}
+    else{S.huespedes=[];S.festivos=[];}
+    const cfg=localStorage.getItem('urpi_config');
+    if(cfg){const c=JSON.parse(cfg);S.config=c;document.getElementById('cfgEmail').value=c.email||'pablosarria@urpihospedajes.com';document.getElementById('cfgTel').value=c.tel||'00 34 822 098 235';}
+  }catch(e){S.huespedes=[];S.festivos=[];}
+  actualizarUI();
+}
+function actualizarUI(){
+  document.getElementById('nCnt').textContent=S.huespedes.length;
+  document.getElementById('fCnt').textContent=S.festivos.length;
+  const keys=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('urpi_'))keys.push(k);}}catch(e){}
+  document.getElementById('sfooter').textContent=`${S.huespedes.length} huésp. · ${S.festivos.length} festivos`;
+  document.getElementById('storageInfo').textContent=`Clave activa: ${storKey()} · Claves guardadas: ${keys.length}`;
+}
+
+function cambiarQ(){
+  S.qTipo=parseInt(document.getElementById('sQ').value);
+  S.qMes=parseInt(document.getElementById('sM').value);
+  S.qAno=parseInt(document.getElementById('sA').value);
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  S.qIni=S.qTipo===1?new Date(S.qAno,S.qMes-1,1):new Date(S.qAno,S.qMes-1,16);
+  S.qFin=S.qTipo===1?new Date(S.qAno,S.qMes-1,15):new Date(S.qAno,S.qMes-1,dm);
+  document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+  cargar();
+}
+
+function fmt(d){return d?d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
+function fmtISO(d){if(!d)return '';if(typeof d==='string')return d;return d.toISOString().split('T')[0];}
+function pd(s){
+  if(!s)return null;
+  if(s instanceof Date)return s;
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){const y=m[3].length===2?2000+parseInt(m[3]):parseInt(m[3]);return new Date(y,parseInt(m[2])-1,parseInt(m[1]),12,0,0);}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return new Date(parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]),12,0,0);
+  return null;
+}
+function edad(fnac,ref){
+  const d=pd(fnac);
+  if(!d||isNaN(d.getTime()))return 99;
+  const r=ref instanceof Date?ref:(S.qFin||new Date());
+  const rY=r.getFullYear(),rM=r.getMonth(),rD=r.getDate();
+  const dY=d.getFullYear(),dM=d.getMonth(),dD=d.getDate();
+  let a=rY-dY;
+  if(rM<dM||(rM===dM&&rD<dD))a--;
+  return a;
+}
+function tipoH(fnac){const ref=S.qFin||new Date();const e=edad(fnac,ref);return e<3?'bebe':e<18?'menor':'adulto';}
+function calcLectivos(ini,fin){
+  if(!ini||!fin||!S.qIni||!S.qFin)return 0;
+  // El dia de entrada no cuenta para snack (el menor va al cole al dia siguiente)
+  // Solo si la entrada es anterior al inicio de quincena se cuenta desde qIni
+  let desdeBase=new Date(Math.max(ini.getTime(),S.qIni.getTime()));
+  const desde=ini>S.qIni ? new Date(desdeBase.getFullYear(),desdeBase.getMonth(),desdeBase.getDate()+1) : desdeBase;
+  const hasta=new Date(Math.min(fin.getTime(),S.qFin.getTime()));
+  let n=0;const d=new Date(desde);
+  while(d<=hasta){
+    const dow=d.getDay(),iso=fmtISO(d);
+    if(dow!==0&&dow!==6&&!S.festivos.includes(iso))n++;
+    d.setDate(d.getDate()+1);
+  }
+  return n;
+}
+
+function nav(btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const id=btn.dataset.page;
+  document.getElementById('p-'+id).classList.add('on');
+  btn.classList.add('active');
+  if(id==='huespedes')renderH();
+  if(id==='resumen')renderR();
+  if(id==='festivos')renderF();
+  if(id==='config')renderConfig();
+}
+
+function showMsg(pid,txt,tipo){
+  const el=document.getElementById('msg-'+pid);
+  if(!el)return;
+  el.innerHTML=`<div class="msg msg-${tipo}">${txt}</div>`;
+  setTimeout(()=>{if(el)el.innerHTML='';},3500);
+}
+
+function esNac(s){return NACS.some(n=>s.toUpperCase().includes(n));}
+function esSkip(s){return SKIP.some(k=>s.toUpperCase().includes(k));}
+function esCabeceraEmail(s){
+  // Filtra líneas que son cabeceras de email, no nombres de personas
+  const l=s.trim();
+  const prefijos=['DE:','PARA:','CC:','CCO:','ASUNTO:','SUBJECT:','FROM:','TO:','BCC:','SENT:','ENVIADO:','FECHA:','DATE:','RE:','FW:','FWD:'];
+  const up=l.toUpperCase();
+  if(prefijos.some(p=>up.startsWith(p)))return true;
+  // Líneas con email entre < >
+  if(/<[^@]+@[^>]+>/.test(l))return true;
+  // Líneas con formato email directo
+  if(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(l))return true;
+  return false;
+}
+function esNombre(s){
+  const l=s.trim();
+  if(l.length<5||esSkip(l)||esNac(l)||esCabeceraEmail(l)||/^\d/.test(l)||/[0-9]{4,}/.test(l))return false;
+  return l.split(/\s+/).filter(p=>p.length>1&&/^[A-ZÁÉÍÓÚÜÑ]/.test(p)).length>=2;
+}
+function detHostal(txt){
+  const u=txt.toUpperCase();
+  for(const h of Object.keys(HOSTALES)){if(u.includes(h.toUpperCase()))return h;}
+  if(u.includes('MENCEY'))return 'Mencey';if(u.includes('MOLINA'))return 'La Molina';
+  if(u.includes('HOSTER'))return 'La Hostería';if(u.includes('MILEMA'))return 'Milema';
+  if(u.includes('LIMA'))return 'Casa Lima';if(u.includes('CRISTINA'))return 'María Cristina';
+  return null;
+}
+function parsPersonas(txt){
+  const lineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const out=[];
+  for(let i=0;i<lineas.length;i++){
+    const l=lineas[i];if(!esNombre(l))continue;
+    const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
+    const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
+    let fnac='';
+    for(let j=i+1;j<Math.min(i+5,lineas.length);j++){
+      const sig=lineas[j].trim();
+      const fm=sig.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if(fm&&!esNombre(sig)){fnac=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;break;}
+      if(esNombre(sig))break;
+    }
+    out.push({nombre,fnac,ageN:am?parseInt(am[1]):null,cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+  }
+  return out;
+}
+
+function procesarCorreo(){
+  const txt=document.getElementById('txtCorreo').value.trim();
+  if(!txt)return;
+  const tipo=/FIN DE ESTANCIA/i.test(txt)?'FIN':'INICIO';
+  const hostal=detHostal(txt);
+  const picnicG=/PICNIC/i.test(txt);
+  let fecha='';
+  const fm=txt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if(fm)fecha=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;
+  else fecha=fmtISO(new Date());
+  const personas=parsPersonas(txt);
+  if(picnicG&&tipo==='FIN')personas.forEach(p=>p.picnic=true);
+  personas.forEach(p=>{
+    const e=p.fnac?edad(p.fnac,S.qFin||new Date()):(p.ageN||99);
+    if(e>=3&&e<18){
+      const entD=tipo==='INICIO'?pd(fecha):S.qIni;
+      const salD=tipo==='FIN'?pd(fecha):S.qFin;
+      if(entD&&salD)p.snackDias=calcLectivos(entD,salD);
+    }
+  });
+  document.getElementById('pTipo').value=tipo;
+  if(hostal)document.getElementById('pHostal').value=hostal;
+  document.getElementById('pFecha').value=fecha;
+  document.getElementById('detectMsg').innerHTML=`<strong>${tipo==='INICIO'?'Inicio':'Fin'} de estancia</strong>${hostal?' en <strong>'+hostal+'</strong>':''}. <strong>${personas.length}</strong> persona(s) detectada(s).${picnicG?' Picnic solicitado.':''}`;
+  window._prev=personas;
+  renderPrev(personas);
+  document.getElementById('prevArea').style.display='block';
+}
+
+function renderPrev(personas){
+  const a=document.getElementById('personasPrev');
+  if(!personas.length){a.innerHTML='<div class="msg msg-warn">No se detectaron personas. Usa la entrada manual.</div>';return;}
+  a.innerHTML=personas.map((p,i)=>{
+    const e=p.fnac?edad(p.fnac,S.qFin||new Date()):(p.ageN||99);
+    const t=e<3?'bebe':e<18?'menor':'adulto';
+    const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
+    const bt=t==='adulto'?'Adulto':t==='menor'?'Menor':'Bebé';
+    // Solo adultos pueden ser cabeza
+    const puedeSerCabeza=t==='adulto';
+    return `<div class="pprev" id="pprev-${i}">
+      <div class="pprev-top">
+        <div class="fg"><label>Nombre</label><input type="text" value="${p.nombre}" onchange="window._prev[${i}].nombre=this.value;renderPrevRow(${i})"></div>
+        <div class="fg"><label>Fecha nacimiento</label><input type="date" value="${p.fnac}" onchange="window._prev[${i}].fnac=this.value;renderPrevRow(${i})"></div>
+        <div style="padding-top:20px;display:flex;gap:6px;align-items:center">
+          <span class="badge ${bc}">${bt}</span>
+          ${puedeSerCabeza?`<button onclick="toggleCabeza(${i})" style="padding:3px 10px;border-radius:20px;border:1.5px solid;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.15s;${p.cabeza?'background:var(--navy);color:#fff;border-color:var(--navy)':'background:#fff;color:var(--gray);border-color:var(--gray3)'}" id="btn-cabeza-${i}">★ Negrita</button>`:''}
+        </div>
+      </div>
+      <div class="pprev-ext">
+        <label><input type="checkbox" ${p.picnic?'checked':''} onchange="window._prev[${i}].picnic=this.checked"> Picnic</label>
+        <label>Min días: <input type="number" value="${p.minDias}" min="0" onchange="window._prev[${i}].minDias=parseInt(this.value)||0"></label>
+        <label>Snack días: <input type="number" value="${p.snackDias}" min="0" onchange="window._prev[${i}].snackDias=parseInt(this.value)||0"></label>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCabeza(i){
+  window._prev[i].cabeza=!window._prev[i].cabeza;
+  const btn=document.getElementById('btn-cabeza-'+i);
+  if(btn){
+    btn.style.background=window._prev[i].cabeza?'var(--navy)':'#fff';
+    btn.style.color=window._prev[i].cabeza?'#fff':'var(--gray)';
+    btn.style.borderColor=window._prev[i].cabeza?'var(--navy)':'var(--gray3)';
+  }
+}
+
+function renderPrevRow(i){
+  // Re-render single row when name/fnac changes to update badge
+  const p=window._prev[i];
+  const e=p.fnac?edad(p.fnac,S.qFin||new Date()):(p.ageN||99);
+  const t=e<3?'bebe':e<18?'menor':'adulto';
+  const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
+  const bt=t==='adulto'?'Adulto':t==='menor'?'Menor':'Bebé';
+  // Just update badge - full re-render would lose focus
+  const row=document.getElementById('pprev-'+i);
+  if(row){
+    const badges=row.querySelectorAll('.badge');
+    badges.forEach(b=>{if(b.textContent==='Adulto'||b.textContent==='Menor'||b.textContent==='Bebé'){b.className='badge '+bc;b.textContent=bt;}});
+  }
+}
+
+function confirmar(){
+  const tipo=document.getElementById('pTipo').value;
+  const hostal=document.getElementById('pHostal').value;
+  const fecha=document.getElementById('pFecha').value;
+  const personas=window._prev||[];
+  personas.forEach(p=>{
+    const key=p.nombre.toUpperCase().trim();
+    const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
+    if(tipo==='INICIO'){
+      if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
+    }else{
+      if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
+    }
+  });
+  guardar();cancelarPrev();
+  document.getElementById('txtCorreo').value='';
+  showMsg('correos',`✓ ${personas.length} huésped(es) registrados correctamente`,'ok');
+}
+function cancelarPrev(){document.getElementById('prevArea').style.display='none';}
+
+function addManual(){
+  const nombre=document.getElementById('mNombre').value.trim();
+  if(!nombre){showMsg('manual','Introduce el nombre del huésped','err');return;}
+  const tipo=document.getElementById('mTipo').value;
+  const hostal=document.getElementById('mHostal').value;
+  const fecha=document.getElementById('mFecha').value;
+  const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
+  const d={nombre,fnac:document.getElementById('mFnac').value,hostal,cabeza:document.getElementById('mCabeza').value==='si',picnic:document.getElementById('mPicnic').value==='si',minDias:parseInt(document.getElementById('mMin').value)||0,snackDias:parseInt(document.getElementById('mSnack').value)||0};
+  if(tipo==='INICIO'){if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}else S.huespedes.push({id:Date.now(),...d,fechaEntrada:fecha,fechaSalida:''});}
+  else{if(ex){ex.fechaSalida=fecha;if(d.picnic)ex.picnic=true;}else S.huespedes.push({id:Date.now(),...d,fechaEntrada:'',fechaSalida:fecha});}
+  guardar();
+  document.getElementById('mNombre').value='';document.getElementById('mFnac').value='';
+  showMsg('manual','✓ Huésped añadido correctamente','ok');
+}
+
+function calcDias(h){
+  let ini=h.fechaEntrada?pd(h.fechaEntrada):null;
+  let fin=h.fechaSalida?pd(h.fechaSalida):null;
+  if(!ini||ini<S.qIni)ini=new Date(S.qIni);
+  if(!fin||fin>S.qFin)fin=new Date(S.qFin);
+  if(!ini||!fin||ini>fin)return{dias:0,ini:S.qIni,fin:S.qFin};
+  return{dias:Math.round((fin-ini)/86400000)+1,ini,fin};
+}
+function getTarifas(){
+  return{
+    tar:parseFloat(document.getElementById('cfgTar')?.value||40),
+    pMin:parseFloat(document.getElementById('cfgMin')?.value||4.59),
+    pSnack:parseFloat(document.getElementById('cfgSnack')?.value||2),
+    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||4.67),
+    igicPct:(parseFloat(document.getElementById('cfgIgic')?.value||7))/100
+  };
+}
+function calcImp(h){
+  const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
+  const{dias,ini,fin}=calcDias(h);
+  const t=tipoH(h.fnac);const bebe=t==='bebe',menor=t==='menor';
+  const aloj=bebe?0:dias*tar;
+  const minI=(h.minDias||0)*pMin;
+  const snackI=(h.snackDias||0)*pSnack;
+  const picnic=0;
+  const base=Math.round((aloj+minI+snackI)*100)/100;
+  const igic=Math.round(base*igicPct*100)/100;
+  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias:h.snackDias||0,minDias:h.minDias||0};
+}
+
+function renderH(){
+  const a=document.getElementById('hContent');
+  if(!S.huespedes.length){
+    a.innerHTML='<div class="empty"><div class="empty-icon">◉</div><div class="empty-txt">Sin huéspedes registrados. Empieza pegando un correo de CEAR.</div></div>';return;
+  }
+  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  document.getElementById('hSub').textContent=`${S.huespedes.length} huéspedes · ${Object.keys(byH).length} hostales`;
+  a.innerHTML=Object.entries(byH).map(([hostal,hs])=>{
+    const tot=hs.reduce((s,h)=>s+calcImp(h).total,0);
+    return `<div class="hsect">
+      <div class="hhead"><span>${hostal}</span><span class="htotal">${tot.toFixed(2)} €</span></div>
+      <div class="hbody">${hs.map(h=>{
+        const imp=calcImp(h);const t=imp.bebe?'bebe':imp.menor?'menor':'adulto';
+        const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
+        const bt=t==='adulto'?'Adulto':t==='menor'?'Menor':'Bebé';
+        return `<div class="hrow ${h.cabeza?'cab':t==='adulto'?'':t}">
+          <div class="hrow-top">
+            <div>
+              <div class="hrow-name" style="font-weight:${h.cabeza?600:400}">${h.nombre}</div>
+              <div class="hrow-meta">${h.fechaEntrada||'sin entrada'} → ${h.fechaSalida||'quincena completa'} · ${imp.dias} días · ${imp.total.toFixed(2)} €</div>
+            </div>
+            <div class="hrow-acts">
+              <button class="btn btn-sm" onclick="editH('${h.id}')">Editar</button>
+              <button class="btn btn-sm btn-danger" onclick="delH('${h.id}')">×</button>
+            </div>
+          </div>
+          <div class="hrow-badges">
+            <span class="badge ${bc}">${bt}</span>
+            ${h.cabeza?'<span class="badge b-cabeza">Cabeza</span>':''}
+            ${h.picnic?'<span class="badge b-picnic">Picnic</span>':''}
+            ${h.snackDias?`<span class="badge b-snack">Snack ×${h.snackDias}d</span>`:''}
+            ${h.minDias?`<span class="badge b-min">Min ×${h.minDias}d</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  }).join('');
+}
+function delH(id){
+  if(!confirm('¿Eliminar este huésped?'))return;
+  S.huespedes=S.huespedes.filter(h=>String(h.id)!==String(id));
+  guardar();renderH();
+}
+function editH(id){
+  const h=S.huespedes.find(x=>String(x.id)===String(id));if(!h)return;
+  document.getElementById('mNombre').value=h.nombre;
+  document.getElementById('mFnac').value=h.fnac||'';
+  document.getElementById('mHostal').value=h.hostal;
+  document.getElementById('mTipo').value=h.fechaEntrada?'INICIO':'FIN';
+  document.getElementById('mFecha').value=h.fechaEntrada||h.fechaSalida||'';
+  document.getElementById('mCabeza').value=h.cabeza?'si':'no';
+  document.getElementById('mPicnic').value=h.picnic?'si':'no';
+  document.getElementById('mMin').value=h.minDias||0;
+  document.getElementById('mSnack').value=h.snackDias||0;
+  S.huespedes=S.huespedes.filter(x=>String(x.id)!==String(id));
+  guardar();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('p-manual').classList.add('on');
+  document.querySelector('[data-page="manual"]').classList.add('active');
+}
+
+function addFestivo(){
+  const f=document.getElementById('fFecha').value;if(!f)return;
+  if(!S.festivos.includes(f)){S.festivos.push(f);S.festivos.sort();}
+  document.getElementById('fFecha').value='';
+  guardar();renderF();
+}
+function remF(f){S.festivos=S.festivos.filter(x=>x!==f);guardar();renderF();}
+function renderF(){
+  const a=document.getElementById('fLista');
+  if(!S.festivos.length){a.innerHTML='<span style="font-size:11px;color:var(--gray)">Sin festivos — añade los días festivos de la quincena</span>';return;}
+  a.innerHTML=S.festivos.map(f=>{
+    const d=pd(f);
+    const txt=d?d.toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'}):f;
+    return `<span class="fpill">${txt}<button onclick="remF('${f}')">×</button></span>`;
+  }).join('');
+}
+
+function renderR(){
+  const a=document.getElementById('rContent');
+  if(!S.huespedes.length){a.innerHTML='<div class="empty"><div class="empty-icon">≡</div><div class="empty-txt">Sin huéspedes registrados.</div></div>';return;}
+  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const{igicPct}=getTarifas();
+  let totB=0,totI=0;
+  S.huespedes.forEach(h=>{const i=calcImp(h);totB+=i.base;totI+=i.igic;});
+  const totT=Math.round((totB+totI)*100)/100;
+  a.innerHTML=`<div class="stats">
+    <div class="stat"><div class="stat-v">${S.huespedes.length}</div><div class="stat-l">Huéspedes</div></div>
+    <div class="stat"><div class="stat-v">${Object.keys(byH).length}</div><div class="stat-l">Hostales</div></div>
+    <div class="stat"><div class="stat-v">${totB.toFixed(0)} €</div><div class="stat-l">Base imponible</div></div>
+    <div class="stat accent"><div class="stat-v">${totT.toFixed(0)} €</div><div class="stat-l">Total con IGIC</div></div>
+  </div>`+Object.entries(byH).map(([hostal,hs])=>{
+    const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
+    const hI=Math.round(hB*igicPct*100)/100;
+    const hT=Math.round((hB+hI)*100)/100;
+    const rows=hs.map(h=>{
+      const i=calcImp(h);const t=i.bebe?'Bebé':i.menor?'Menor':'Adulto';
+      return `<tr>
+        <td style="font-weight:${h.cabeza?500:400}">${h.nombre}</td>
+        <td>${t}</td>
+        <td class="mono">${h.fechaEntrada||'—'}</td>
+        <td class="mono">${h.fechaSalida||'quincena completa'}</td>
+        <td class="right">${i.dias}</td>
+        <td class="right mono">${i.aloj.toFixed(2)} €</td>
+        <td class="right mono">${(i.min+i.snack+i.picnic).toFixed(2)} €</td>
+        <td class="right mono bold">${i.base.toFixed(2)} €</td>
+        <td class="right mono">${i.igic.toFixed(2)} €</td>
+        <td class="right mono bold">${i.total.toFixed(2)} €</td>
+      </tr>`;
+    }).join('');
+    return `<div class="hsect">
+      <div class="hhead"><span>${hostal}</span><span class="htotal">${hT.toFixed(2)} €</span></div>
+      <div class="hbody" style="padding:0"><div class="tbl-wrap">
+        <table class="tbl">
+          <tr><th>Huésped</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th style="text-align:right">Días</th><th style="text-align:right">Aloj.</th><th style="text-align:right">Extras</th><th style="text-align:right">Base</th><th style="text-align:right">IGIC</th><th style="text-align:right">Total</th></tr>
+          ${rows}
+          <tr class="tot-row">
+            <td colspan="7" style="padding:6px 8px">Total ${hostal}</td>
+            <td class="right mono" style="padding:6px 8px">${hB.toFixed(2)} €</td>
+            <td class="right mono" style="padding:6px 8px">${hI.toFixed(2)} €</td>
+            <td class="right mono" style="padding:6px 8px">${hT.toFixed(2)} €</td>
+          </tr>
+        </table>
+      </div></div>
+    </div>`;
+  }).join('');
+}
+
+function verPreview(){
+  if(!S.huespedes.length){document.getElementById('genPreview').innerHTML='<div class="msg msg-warn">Sin huéspedes registrados.</div>';return;}
+  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const{igicPct}=getTarifas();
+  let numFact=parseInt(document.getElementById('cfgNum').value);
+  const anoFact=document.getElementById('cfgAno').value;
+  let totB=0,totI=0,totT=0;
+  const rows=Object.entries(byH).map(([hostal,hs])=>{
+    const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
+    const hI=Math.round(hB*igicPct*100)/100;
+    const hT=Math.round((hB+hI)*100)/100;
+    totB+=hB;totI+=hI;totT+=hT;
+    return `<div class="gen-fact-row">
+      <span><strong>${hostal}</strong> · Fact. ${numFact++}-${anoFact} · ${hs.length} huéspedes</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px">${hB.toFixed(2)} € + IGIC = <strong>${hT.toFixed(2)} €</strong></span>
+    </div>`;
+  }).join('');
+  document.getElementById('genPreview').innerHTML=`<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 14px;background:var(--cream);border-bottom:1px solid var(--gray3);font-size:11px;font-weight:500;color:var(--gray);text-transform:uppercase;letter-spacing:0.07em">Vista previa de facturas</div>
+    ${rows}
+    <div class="gen-total"><span>Total general</span><span>${Math.round(totT*100)/100} €</span></div>
+  </div>`;
+}
+
+async function generarExcel(){
+  if(!S.huespedes.length){document.getElementById('genResult').innerHTML='<div class="msg msg-err">No hay huéspedes registrados.</div>';return;}
+  if(typeof ExcelJS==='undefined'){document.getElementById('genResult').innerHTML='<div class="msg msg-err">La librería Excel aún carga. Espera unos segundos e intenta de nuevo.</div>';return;}
+
+  document.getElementById('genResult').innerHTML='<div class="msg msg-info">⏳ Generando Excel con formato exacto...</div>';
+
+  const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
+  const numBase=parseInt(document.getElementById('cfgNum').value);
+  const anoFact=document.getElementById('cfgAno').value;
+  const email=document.getElementById('cfgEmail')?.value||S.config.email;
+  const tel=document.getElementById('cfgTel')?.value||S.config.tel;
+  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  const per=`${S.qTipo===1?'1Q':'2Q'} (${S.qTipo===1?'01-15':'16-'+dm})`;
+  const mes=MESES[S.qMes].toUpperCase();
+
+  // ExcelJS helpers
+  const wb=new ExcelJS.Workbook();
+  wb.creator='URPI Facturación CEAR';
+
+  const COL_WIDTHS=[14.14,9.14,8.43,6.43,9.14,6,9.86,13.29,11,11,9,9.43,5.14,7.86,5.14,7.86,5.86,6.86,9.57,8.86,13.29];
+  const ROW_H={1:26.25,2:20.1,3:20.1,4:20.1,5:20.1,6:20.1,7:20.1,8:20.1,9:9.95,10:20.1,11:20.1,12:20.1,13:20.1,14:20.1,15:9.95,16:33.95,17:33.95};
+
+  const T={thin:{style:'thin'}};
+  const BF={top:T.thin,bottom:T.thin,left:T.thin,right:T.thin};
+  const BTB={top:T.thin,bottom:T.thin};
+  const BRT={top:T.thin,bottom:T.thin,right:T.thin};
+  const BLB={top:T.thin,bottom:T.thin,left:T.thin};
+
+  function F(bold,size){return{name:'Arial',bold:!!bold,size:size||9};}
+  function AL(h,v,w){return{horizontal:h||'center',vertical:v||'middle',wrapText:!!w};}
+  function EUR(v){return{type:'decimal',decimal:true,format:'#,##0.00 €',value:v};}
+  function PCT(v){return{type:'decimal',format:'0%',value:v};}
+  function fmtD(d){
+    if(!d)return '';
+    const dt=d instanceof Date?d:(typeof d==='string'?new Date(d):null);
+    if(!dt||isNaN(dt))return '';
+    return dt.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }
+
+  // Helper: set cell value + style
+  function sc(ws,r,c,val,bold,size,halign,numFmt,border){
+    const cell=ws.getCell(r,c);
+    if(val!==null&&val!==undefined)cell.value=val;
+    if(bold!==undefined||size!==undefined)cell.font=F(bold,size);
+    if(halign)cell.alignment=AL(halign,'middle');
+    if(numFmt)cell.numFmt=numFmt;
+    if(border)cell.border=border;
+    return cell;
+  }
+
+  // Helper: merge range
+  function mg(ws,r1,c1,r2,c2){
+    try{ws.mergeCells(r1,c1,r2,c2);}catch(e){}
+  }
+
+  // Apply data row borders (exact pattern from original)
+  function applyDataBorders(ws,r){
+    ws.getCell(r,1).border=BF;
+    ws.getCell(r,2).border=BF;
+    for(let c=3;c<=6;c++)ws.getCell(r,c).border=BTB;
+    ws.getCell(r,7).border=BRT;
+    for(let c=8;c<=21;c++)ws.getCell(r,c).border=BF;
+  }
+
+  // Write header block starting at row r, returns first data row
+  function writeHeader(ws,r,hostal,nf,fechaFact,periodo,mesNombre,email,tel){
+    const hi=HOSTALES[hostal];
+
+    // Set row heights
+    Object.entries(ROW_H).forEach(([rn,ht])=>{
+      ws.getRow(r+parseInt(rn)-1).height=ht;
+    });
+
+    // Row 1: hostal name | Factura Nº | número
+    mg(ws,r,1,r,3);
+    sc(ws,r,1,hostal,true,20,'center');
+    mg(ws,r,19,r,20);
+    sc(ws,r,19,'Factura Nº',true,14,'right');
+    sc(ws,r,21,nf,true,14,'center');
+
+    // Row 2: B&B
+    mg(ws,r+1,1,r+1,3);
+    sc(ws,r+1,1,'− B&B −',true,14,'center');
+
+    // Row 4: empresa | Fecha
+    mg(ws,r+3,1,r+3,5);
+    sc(ws,r+3,1,'URPI HOSPEDAJES Y SERVICIOS, S.L.',true,11,'left');
+    sc(ws,r+3,19,'Fecha:',true,11,'left');
+    mg(ws,r+3,20,r+3,21);
+    sc(ws,r+3,20,fechaFact,false,10,'center');
+
+    // Row 5: CIF
+    sc(ws,r+4,1,'CIF',true,11,'left');
+    mg(ws,r+4,2,r+4,3);
+    sc(ws,r+4,2,'B38903746',false,11,'left');
+
+    // Row 6: Dirección | Período
+    sc(ws,r+5,1,'Dirección:',true,11,'left');
+    mg(ws,r+5,2,r+5,8);
+    sc(ws,r+5,2,hi.dir,false,11,'left');
+    sc(ws,r+5,19,'Período:',true,11,'left');
+    mg(ws,r+5,20,r+5,21);
+    sc(ws,r+5,20,periodo,false,12,'center');
+
+    // Row 7: Teléfono
+    sc(ws,r+6,1,'Teléfono:',true,11,'left');
+    mg(ws,r+6,2,r+6,3);
+    sc(ws,r+6,2,tel,false,11,'left');
+
+    // Row 8: Correo | Hostal
+    sc(ws,r+7,1,'Correo:',true,11,'left');
+    mg(ws,r+7,2,r+7,6);
+    sc(ws,r+7,2,email,false,11,'left');
+    sc(ws,r+7,19,'Hostal:',true,11,'left');
+    mg(ws,r+7,20,r+7,21);
+    sc(ws,r+7,20,hi.cod,false,12,'center');
+
+    // Row 10: CLIENTE
+    sc(ws,r+9,1,'CLIENTE',true,11,'left');
+    mg(ws,r+9,2,r+9,8);
+    sc(ws,r+9,2,'COMISIÓN ESPAÑOLA DE AYUDA AL REFUGIADO (CEAR)',true,11,'left');
+
+    // Row 11: CIF
+    sc(ws,r+10,1,'CIF',true,11,'left');
+    mg(ws,r+10,2,r+10,3);
+    sc(ws,r+10,2,'G28651529',false,11,'left');
+
+    // Row 12: Dirección cliente
+    sc(ws,r+11,1,'Dirección:',true,11,'left');
+    mg(ws,r+11,2,r+11,19);
+    sc(ws,r+11,2,'GLORIETA DE CUATRO CAMINOS, 6-7 Planta 7ª - 711 28020, MADRID',false,11,'left');
+
+    // Row 13: Teléfono cliente
+    sc(ws,r+12,1,'Teléfono:',true,11,'left');
+    mg(ws,r+12,2,r+12,3);
+    sc(ws,r+12,2,'00 34 928 297 271',false,11,'left');
+
+    // Row 14: Correo cliente
+    sc(ws,r+13,1,'Correo:',true,11,'left');
+    mg(ws,r+13,2,r+13,5);
+    sc(ws,r+13,2,'administracion.canarias@cear.es',false,11,'left');
+
+    // Row 15: separador completo
+    mg(ws,r+14,1,r+14,21);
+    ws.getRow(r+14).height=9.95;
+
+    // Row 16: mes | FECHAS | tarifas — con bordes exactos
+    const r16=r+15;
+    ws.getRow(r16).height=33.95;
+    sc(ws,r16,1,mesNombre,true,10,'center',null,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    mg(ws,r16,2,r16,7);
+    ws.getCell(r16,2).border={left:T.thin,bottom:T.thin};
+    ws.getCell(r16,3).border={bottom:T.thin};ws.getCell(r16,4).border={bottom:T.thin};
+    ws.getCell(r16,5).border={bottom:T.thin};ws.getCell(r16,6).border={bottom:T.thin};
+    ws.getCell(r16,7).border={bottom:T.thin};ws.getCell(r16,8).border={right:T.thin,bottom:T.thin};
+    mg(ws,r16,9,r16,10);
+    sc(ws,r16,9,'FECHAS',true,10,'center',null,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    ws.getCell(r16,10).border={right:T.thin,top:T.thin,bottom:T.thin};
+    sc(ws,r16,11,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,12,tar,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,13,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,14,pMin,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,15,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,16,pSnack,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,17,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,18,pPicnic,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,19,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,20,igicPct,true,10,'center','0%',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,21,null,null,null,null,null,{left:T.thin,bottom:T.thin});
+
+    // Row 17: table header — with exact border pattern
+    const r17=r+16;
+    ws.getRow(r17).height=33.95;
+    const hdrs=[
+      [1,1,'Nº',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [2,7,'USUARIO (A) ALOJADO',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [8,8,'ESPECIFICAR',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [9,9,'DESDE',10,{left:T.thin,top:T.thin,bottom:T.thin}],
+      [10,10,'HASTA',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [11,11,'DIAS ESTANCIA',8,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [12,12,'AL+M+Lav',9,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [13,13,'Cant.',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [14,14,'Min',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [15,15,'Cant.',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [16,16,'Snack',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [17,17,'Cant.',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [18,18,'Picnic',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [19,19,'Importe sin IGIC',10,{left:T.thin,right:T.thin,top:T.thin}],
+      [20,20,'IGIC',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [21,21,'Importe con IGIC',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+    ];
+    hdrs.forEach(([cs,ce,txt,sz,brd])=>{
+      if(cs!==ce)mg(ws,r17,cs,r17,ce);
+      const cell=ws.getCell(r17,cs);
+      cell.value=txt;cell.font=F(true,sz);
+      cell.alignment=AL('center','middle',true);
+      cell.border=brd;
+    });
+
+    return r17+1;
+  }
+
+  // Write a data row
+  function writeDataRow(ws,r,num,h,imp,bold){
+    ws.getRow(r).height=20.1;
+    const tipo=imp.bebe||imp.menor?'Menor':'Adulto';
+    const fSz=9;
+
+    function wc(c,val,halign,numFmt){
+      const cell=ws.getCell(r,c);
+      if(val!==null&&val!==undefined)cell.value=val;
+      cell.font=F(bold,c===1?10:fSz);
+      cell.alignment=AL(halign||'center','middle');
+      if(numFmt)cell.numFmt=numFmt;
+    }
+
+    wc(1,num,'center');
+    mg(ws,r,2,r,7);
+    wc(2,h.nombre,'left');
+    wc(8,tipo,'center');
+    wc(9,fmtD(imp.ini),'center');
+    wc(10,fmtD(imp.fin),'center');
+    wc(11,imp.dias,'center');
+    wc(12,imp.aloj,'center','#,##0.00 €');
+    if(imp.minDias){wc(13,imp.minDias,'center');wc(14,Math.round(imp.minDias*pMin*100)/100,'center','#,##0.00 €');}
+    if(imp.snackDias){wc(15,imp.snackDias,'center');wc(16,Math.round(imp.snackDias*pSnack*100)/100,'center','#,##0.00 €');}
+    wc(19,imp.base,'center','#,##0.00 €');
+    wc(20,imp.igic,'center','#,##0.00 €');
+    wc(21,imp.total,'center','#,##0.00 €');
+    applyDataBorders(ws,r);
+  }
+
+  // Write picnic row (0 days aloj, only picnic)
+  function writePicnicRow(ws,r,num,h,imp,bold){
+    ws.getRow(r).height=20.1;
+    const tipo=imp.bebe||imp.menor?'Menor':'Adulto';
+    const pb=pPicnic,pi=Math.round(pb*igicPct*100)/100,pt=Math.round((pb+pi)*100)/100;
+
+    function wc(c,val,halign,numFmt){
+      const cell=ws.getCell(r,c);
+      if(val!==null&&val!==undefined)cell.value=val;
+      cell.font=F(bold,c===1?10:9);
+      cell.alignment=AL(halign||'center','middle');
+      if(numFmt)cell.numFmt=numFmt;
+    }
+
+    wc(1,num,'center');mg(ws,r,2,r,7);wc(2,h.nombre,'left');
+    wc(8,tipo,'center');wc(9,fmtD(imp.fin),'center');wc(10,fmtD(imp.fin),'center');
+    wc(11,0,'center');wc(12,0,'center','#,##0.00 €');
+    wc(17,1,'center');wc(18,pb,'center','#,##0.00 €');
+    wc(19,pb,'center','#,##0.00 €');wc(20,pi,'center','#,##0.00 €');wc(21,pt,'center','#,##0.00 €');
+    applyDataBorders(ws,r);
+    return pb;
+  }
+
+  // Write totals section
+  function writeTotals(ws,r,baseTot){
+    const igicT=Math.round(baseTot*igicPct*100)/100;
+    const totT=Math.round((baseTot+igicT)*100)/100;
+    ws.getRow(r).height=9.95;
+
+    // Helper: apply full border box to a range of cells in a row
+    function borderBox(row,cFrom,cTo){
+      for(let c=cFrom;c<=cTo;c++){
+        const cell=ws.getCell(row,c);
+        cell.border={
+          top:T.thin, bottom:T.thin,
+          left: c===cFrom?T.thin:undefined,
+          right: c===cTo?T.thin:undefined
+        };
+      }
+    }
+
+    // ROW r+1: PAGO / TRANSFERENCIA | BASE IMPONIBLE [L-T] | valor [U]
+    const r1=r+1; ws.getRow(r1).height=20.1;
+    sc(ws,r1,1,'PAGO',true,12,'left');
+    mg(ws,r1,2,r1,6); sc(ws,r1,2,'TRANSFERENCIA',true,12,'left');
+    mg(ws,r1,12,r1,20); sc(ws,r1,12,'BASE IMPONIBLE',true,12,'left');
+    ws.getCell(r1,12).font=F(true,12);
+    borderBox(r1,12,20);
+    sc(ws,r1,21,Math.round(baseTot*100)/100,true,12,'right','#,##0.00 €',BF);
+
+    // ROW r+2: IGIC [L-S] | % [T] | valor [U]
+    const r2=r+2; ws.getRow(r2).height=20.1;
+    mg(ws,r2,12,r2,19); sc(ws,r2,12,'IGIC',true,12,'left');
+    ws.getCell(r2,12).font=F(true,12);
+    borderBox(r2,12,19);
+    sc(ws,r2,20,igicPct,true,12,'center','0%',BF);
+    sc(ws,r2,21,igicT,true,12,'right','#,##0.00 €',BF);
+
+    // ROW r+3: ENTIDAD / BANCO DE SABADELL
+    const r3=r+3; ws.getRow(r3).height=20.1;
+    sc(ws,r3,1,'ENTIDAD',true,12,'left');
+    mg(ws,r3,2,r3,6); sc(ws,r3,2,'BANCO DE SABADELL',true,12,'left');
+
+    // ROW r+4: Nº CUENTA | TOTAL FACTURA [L-T] | valor [U]
+    const r4=r+4; ws.getRow(r4).height=20.1;
+    sc(ws,r4,1,'Nº CUENTA',true,12,'left');
+    mg(ws,r4,2,r4,6); sc(ws,r4,2,'ES60 0081 0369 01 0001445552',true,12,'left');
+    mg(ws,r4,12,r4,20); sc(ws,r4,12,'TOTAL FACTURA',true,12,'left');
+    ws.getCell(r4,12).font=F(true,12);
+    borderBox(r4,12,20);
+    sc(ws,r4,21,totT,true,12,'right','#,##0.00 €',BF);
+  }
+
+  // BUILD WORKBOOK
+  let numFact=numBase;
+  for(const [hostal,hs] of Object.entries(byH)){
+    const ws=wb.addWorksheet(hostal.substring(0,31));
+    COL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+    const nf=`${numFact}-${anoFact}`;
+    let cur=writeHeader(ws,1,hostal,nf,fmt(S.qFin),per,mes,email,tel);
+    let baseTot=0;let num=1;
+    const ROWS_PER_PAGE=14;
+
+    for(const h of hs){
+      const{dias,ini,fin}=calcDias(h);
+      const t=tipoH(h.fnac);const bebe=t==='bebe',menor=t==='menor';
+      const aloj=bebe?0:dias*tar;
+      const minI=(h.minDias||0)*pMin;
+      const snackI=(h.snackDias||0)*pSnack;
+      const base=Math.round((aloj+minI+snackI)*100)/100;
+      const igic=Math.round(base*igicPct*100)/100;
+      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:h.minDias||0,snackDias:h.snackDias||0};
+
+      if(num>1&&(num-1)%ROWS_PER_PAGE===0){
+        ws.getRow(cur).height=9.95;cur++;
+        cur=writeHeader(ws,cur,hostal,nf,fmt(S.qFin),per,mes,email,tel);
+      }
+
+      writeDataRow(ws,cur,num,h,imp,h.cabeza||false);
+      baseTot+=base;cur++;
+
+      if(h.picnic){
+        if(num%ROWS_PER_PAGE===0){ws.getRow(cur).height=9.95;cur++;cur=writeHeader(ws,cur,hostal,nf,fmt(S.qFin),per,mes,email,tel);}
+        baseTot+=writePicnicRow(ws,cur,num,h,imp,h.cabeza||false);
+        cur++;
+      }
+      num++;
+    }
+    writeTotals(ws,cur,Math.round(baseTot*100)/100);
+    numFact++;
+  }
+
+  // Save
+  try{
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const fname=`Facturas_CEAR_${per.replace(/[()\/\s]/g,'')}_${mes}_${S.qAno}.xlsx`;
+    saveAs(blob,fname);
+    document.getElementById('genResult').innerHTML=`<div class="msg msg-ok">✓ Excel generado con formato exacto: <strong>${fname}</strong> · ${Object.keys(byH).length} hojas · ${S.huespedes.length} huéspedes</div>`;
+  }catch(e){
+    document.getElementById('genResult').innerHTML=`<div class="msg msg-err">Error al generar: ${e.message}</div>`;
+  }
+}
+
+function guardarConfig(){
+  S.config.email=document.getElementById('cfgEmail').value;
+  S.config.tel=document.getElementById('cfgTel').value;
+  guardar();
+  alert('✓ Configuración guardada');
+}
+function renderConfig(){actualizarUI();}
+function limpiarQuincena(){
+  if(!confirm(`¿Eliminar todos los datos de la quincena ${S.qTipo===1?'1ª':'2ª'} de ${MESES[S.qMes]} ${S.qAno}?`))return;
+  S.huespedes=[];S.festivos=[];
+  guardar();renderH();renderF();
+  alert('✓ Datos de la quincena eliminados');
+}
+function exportarJSON(){
+  const blob=new Blob([JSON.stringify({quincena:{tipo:S.qTipo,mes:S.qMes,ano:S.qAno},huespedes:S.huespedes,festivos:S.festivos},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`urpi_${storKey()}.json`;a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// ============================================================
+// IMPORTAR FACTURAS EXCEL ANTERIORES
+// ============================================================
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('dropZone').style.borderColor='var(--gray3)';
+  importarExcels(e.dataTransfer.files);
+}
+
+async function importarExcels(files){
+  if(!files||!files.length)return;
+  if(typeof ExcelJS==='undefined'){
+    document.getElementById('importResult').innerHTML='<div class="msg msg-err">La librería Excel aún carga. Espera unos segundos e intenta de nuevo.</div>';
+    return;
+  }
+  document.getElementById('importResult').innerHTML='<div class="msg msg-info">⏳ Leyendo facturas CEAR...</div>';
+
+  // Si el checkbox está marcado, limpiar huéspedes de la quincena actual
+  const limpiar=document.getElementById('chkLimpiar')?.checked!==false;
+  if(limpiar){
+    S.huespedes=[];
+    guardar();
+    actualizarUI();
+  }
+
+  let totalImportados=0;
+  let hostalResults=[];
+
+  // Palabras que indican fila de totales — no son huéspedes
+  const SKIP_WORDS=['PAGO','BASE IMPONIBLE','IGIC','TOTAL FACTURA','ENTIDAD','Nº CUENTA',
+    'TRANSFERENCIA','BANCO','CUENTA','USUARIO','ESPECIFICAR','AL+M','FECHAS',
+    'DESDE','HASTA','DIAS','MARZO','ABRIL','ENERO','FEBRERO','MAYO','JUNIO',
+    'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+  function esFilaTotal(nombre){
+    if(!nombre)return true;
+    const n=String(nombre).trim().toUpperCase();
+    if(n.length<3)return true;
+    if(/^[0-9,.\s€%]+$/.test(n))return true;
+    return SKIP_WORDS.some(w=>n.startsWith(w)||n===w);
+  }
+
+  function detectarHostalDeNombre(nombre){
+    const n=String(nombre||'').toUpperCase();
+    if(n.includes('HOSTER')||n.includes('HOSTERÍA'))return 'La Hostería';
+    if(n.includes('MOLINA'))return 'La Molina';
+    if(n.includes('MILEMA'))return 'Milema';
+    if(n.includes('MENCEY'))return 'Mencey';
+    if(n.includes('LIMA'))return 'Casa Lima';
+    if(n.includes('CRISTINA')||n.includes('MARIA C')||n.includes('MARÍA C'))return 'María Cristina';
+    return null;
+  }
+
+  function parseExcelDate(v){
+    if(!v)return '';
+    if(v instanceof Date)return fmtISO(v);
+    if(typeof v==='string'){const d=pd(v);return d?fmtISO(d):'';}
+    if(typeof v==='number'){
+      // Excel serial date
+      const d=new Date((v-25569)*86400*1000);
+      return fmtISO(d);
+    }
+    return '';
+  }
+
+  for(const file of files){
+    try{
+      const buf=await file.arrayBuffer();
+      const wb=new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+
+      // Procesar solo hojas CEAR
+      const todasCear=wb.worksheets.filter(ws=>ws.name.toLowerCase().includes('cear'));
+      if(!todasCear.length){
+        hostalResults.push({hostal:'—',archivo:file.name,importados:0,error:'No se encontraron hojas CEAR en este archivo'});
+        continue;
+      }
+
+      // Detectar la fecha más reciente entre todas las hojas CEAR (celda T4)
+      let fechaMaxISO='';
+      todasCear.forEach(ws=>{
+        const v=ws.getCell(4,20).value; // T4 = fecha de la factura
+        if(v){
+          const iso=parseExcelDate(v);
+          if(iso>fechaMaxISO)fechaMaxISO=iso;
+        }
+      });
+
+      // Solo importar las hojas con esa fecha máxima (la quincena más reciente)
+      const hojasACear=fechaMaxISO
+        ? todasCear.filter(ws=>{
+            const v=ws.getCell(4,20).value;
+            return v&&parseExcelDate(v)===fechaMaxISO;
+          })
+        : todasCear;
+
+      // Snapshot de nombres ANTES de importar este archivo (para no deduplicar entre hojas)
+      const nombresPreexistentes=new Set(S.huespedes.map(h=>h.nombre.toUpperCase().trim()));
+      // Durante la importacion, rastreamos los que ya añadimos en ESTE archivo
+      const nombresEnEsteArchivo=new Set();
+
+      for(const ws of hojasACear){
+        // Detectar hostal desde A1 o nombre de hoja
+        let hostal=detectarHostalDeNombre(ws.getCell(1,1).value)||detectarHostalDeNombre(ws.name)||'Milema';
+        let imported=0;
+        let numAnterior=null;
+
+        ws.eachRow((row,rn)=>{
+          // Una fila es de DATOS si y solo si:
+          // - Col A es un número entero (el nº de orden del huésped)
+          // - Col H dice exactamente 'Adulto' o 'Menor'
+          // Todo lo demás es cabecera, pie, o fila de picnic
+          const numVal=row.getCell(1).value;
+          const tipo=String(row.getCell(8).value||'').trim();
+
+          const numInt=parseInt(numVal);
+          if(isNaN(numInt)||numInt<=0)return;
+          if(tipo!=='Adulto'&&tipo!=='Menor')return;
+
+          const nombre=String(row.getCell(2).value||'').trim();
+          if(!nombre||nombre.length<3)return;
+
+          const hastaRaw=row.getCell(10).value;
+          const dias=parseInt(row.getCell(11).value)||0;
+          const snackCant=parseInt(row.getCell(15).value)||0;
+          const minCant=parseInt(row.getCell(13).value)||0;
+          const picnicCant=parseInt(row.getCell(17).value)||0;
+
+          // Skip filas de picnic (días=0 con picnic)
+          if(dias===0&&picnicCant>0)return;
+
+          // Fecha de salida de la factura importada
+          const hastaISO=parseExcelDate(hastaRaw);
+
+          // Evitar duplicados: no importar si ya existía ANTES de este archivo
+          // Pero sí permitir la misma persona en distintas hojas (se actualiza el hostal)
+          const key=nombre.toUpperCase().trim();
+          if(nombresPreexistentes.has(key))return;
+          // Si ya aparece en este archivo (otra hoja), actualizar hostal y saltar
+          if(nombresEnEsteArchivo.has(key)){
+            const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
+            // No duplicar, la persona ya está registrada desde otra hoja
+            return;
+          }
+          nombresEnEsteArchivo.add(key);
+
+          // Leer negrita de col B para determinar si es cabeza de familia
+          const celdaNombre=row.getCell(2);
+          const esCabeza=celdaNombre.font&&celdaNombre.font.bold===true;
+
+          S.huespedes.push({
+            id:Date.now()+Math.random(),
+            nombre,
+            fnac:'',
+            hostal,
+            fechaEntrada:fmtISO(S.qIni),
+            fechaSalida:'',
+            cabeza:esCabeza,
+            picnic:false,
+            minDias:minCant||0,
+            snackDias:snackCant||0,
+            importado:true
+          });
+          imported++;
+          totalImportados++;
+        });
+
+        hostalResults.push({hostal,archivo:ws.name,importados:imported});
+      }
+    }catch(e){
+      hostalResults.push({hostal:'?',archivo:file.name,importados:0,error:e.message});
+    }
+  }
+
+  guardar();
+  actualizarUI();
+
+  const rows=hostalResults.map(r=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--gray3);font-size:12px">
+      <span><strong>${r.hostal}</strong> · <span style="color:var(--gray);font-size:11px">${r.archivo}</span></span>
+      <span style="font-family:'JetBrains Mono',monospace">${r.error
+        ?'<span style="color:var(--red)">'+r.error+'</span>'
+        :'<span style="color:var(--green)">'+r.importados+' huéspedes</span>'}</span>
+    </div>`
+  ).join('');
+
+  document.getElementById('importResult').innerHTML=`
+    <div class="card" style="padding:0;overflow:hidden;margin-top:14px">
+      <div style="padding:10px 12px;background:var(--cream);border-bottom:1px solid var(--gray3);font-size:11px;font-weight:500;color:var(--gray);text-transform:uppercase;letter-spacing:0.07em">Resultado por hoja</div>
+      ${rows}
+      <div style="padding:10px 12px;background:var(--navy);color:#fff;font-size:12px;font-weight:500">
+        Total importados: <span style="color:var(--orange2);font-family:'JetBrains Mono',monospace">${totalImportados} huéspedes en ${hostalResults.filter(r=>!r.error).length} hostales</span>
+      </div>
+    </div>
+    <div class="msg msg-ok" style="margin-top:10px">✓ Importación completada. Ve a "Huéspedes" para revisar. Ajusta las fechas de nacimiento o snack donde sea necesario.</div>`;
+}
+
+// ============================================================
+// CERRAR QUINCENA Y PASAR A LA SIGUIENTE
+// ============================================================
+function renderCerrar(){
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  const qFinStr=S.qTipo===1?'15':String(dm);
+  const mesNom=MESES[S.qMes];
+
+  // Calcular siguiente quincena
+  let nTipo,nMes,nAno;
+  if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
+  else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
+  const nDm=new Date(nAno,nMes,0).getDate();
+  const nFin=nTipo===1?'15':String(nDm);
+
+  // Clasificar huéspedes
+  const continuan=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return true;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal>=S.qFin;
+  });
+  const salen=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return false;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal<S.qFin;
+  });
+  const salenHoy=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return false;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal.getTime()===S.qFin.getTime();
+  });
+
+  document.getElementById('cerrarResumen').innerHTML=`
+    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="stat-v">${S.huespedes.length}</div><div class="stat-l">Total huéspedes</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--green)">${continuan.length}</div><div class="stat-l">Continúan</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--red)">${salen.length+salenHoy.length}</div><div class="stat-l">Se van esta quincena</div></div>
+    </div>
+    ${continuan.length?`<div style="margin-top:8px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:6px;font-weight:500">Pasan a la siguiente quincena:</div>
+      ${continuan.map(h=>`<span style="display:inline-block;background:var(--cream);border:1px solid var(--gray3);border-radius:20px;padding:2px 10px;font-size:11px;margin:2px">${h.nombre}</span>`).join('')}
+    </div>`:''}`;
+
+  document.getElementById('cerrarSiguiente').innerHTML=`
+    <div class="msg msg-info">
+      La siguiente quincena será: <strong>${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}</strong>
+      (${nTipo===1?'01':16}-${nFin})
+      <br><br>
+      <strong>${continuan.length}</strong> huéspedes pasarán automáticamente con fecha de entrada = primer día de la nueva quincena.
+      Los festivos se resetearán — recuerda añadir los de la nueva quincena si los hay.
+    </div>`;
+}
+
+function cerrarQuincena(){
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  let nTipo,nMes,nAno;
+  if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
+  else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
+
+  // Filtrar los que continúan
+  const continuan=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return true;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal>=S.qFin;
+  });
+
+  if(!continuan.length&&!confirm('No hay huéspedes que continúen. ¿Cerrar igualmente?'))return;
+
+  // Calcular primer día de la siguiente quincena
+  const nIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
+  const nIniStr=fmtISO(nIni);
+
+  // Preparar huéspedes para la siguiente quincena
+  const nuevos=continuan.map(h=>({
+    ...h,
+    id:Date.now()+Math.random(),
+    fechaEntrada:nIniStr,
+    fechaSalida:'',
+    picnic:false,
+    snackDias:0,
+    minDias:h.minDias||0
+  }));
+
+  // Guardar estado actual primero
+  guardar();
+
+  // Cambiar a la nueva quincena
+  S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
+  S.huespedes=nuevos;
+  S.festivos=[];
+
+  // Actualizar selectores
+  document.getElementById('sQ').value=nTipo;
+  document.getElementById('sM').value=nMes;
+  document.getElementById('sA').value=nAno;
+  cambiarQ();
+  guardar();
+
+  const msg=`✓ Quincena cerrada. ${nuevos.length} huésped(es) traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}. Los festivos se han reseteado — añade los nuevos si los hay.`;
+  showMsg('cerrar',msg,'ok');
+  renderCerrar();
+}
+
+// AUTO-DETECTAR MES ACTUAL
+(function(){
+  const now=new Date();
+  const mes=now.getMonth()+1;
+  const ano=now.getFullYear();
+  const q=now.getDate()<=15?1:2;
+  document.getElementById('sM').value=mes;
+  document.getElementById('sA').value=ano;
+  document.getElementById('sQ').value=q;
+})();
+
+cambiarQ();
+</script>
+</body>
+</html>
