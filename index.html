@@ -528,7 +528,7 @@ function cambiarQ(){
 }
 
 function fmt(d){return d?d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
-function fmtISO(d){if(!d)return '';if(typeof d==='string')return d;return d.toISOString().split('T')[0];}
+function fmtISO(d){if(!d)return '';if(typeof d==='string')return d;const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
 function pd(s){
   if(!s)return null;
   if(s instanceof Date)return s;
