@@ -492,19 +492,29 @@ const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMO
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
-function storKey(){return `urpi_${S.qAno}_${S.qMes}_${S.qTipo}`;}
+function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
+// Huespedes: clave global unica — persisten independientemente de la quincena
 function guardar(){
-  try{localStorage.setItem(storKey(),JSON.stringify({huespedes:S.huespedes,festivos:S.festivos}));
-  localStorage.setItem('urpi_config',JSON.stringify(S.config));}catch(e){}
+  try{
+    localStorage.setItem('urpi_huespedes',JSON.stringify(S.huespedes));
+    localStorage.setItem(festKey(),JSON.stringify(S.festivos));
+    localStorage.setItem('urpi_config',JSON.stringify(S.config));
+  }catch(e){}
   actualizarUI();
 }
 function cargar(){
   try{
-    const d=localStorage.getItem(storKey());
-    if(d){const p=JSON.parse(d);S.huespedes=p.huespedes||[];S.festivos=p.festivos||[];}
-    else{S.huespedes=[];S.festivos=[];}
+    // Huespedes: siempre la misma clave global
+    const h=localStorage.getItem('urpi_huespedes');
+    S.huespedes=h?JSON.parse(h):[];
+    // Festivos: por quincena
+    const f=localStorage.getItem(festKey());
+    S.festivos=f?JSON.parse(f):[];
     const cfg=localStorage.getItem('urpi_config');
-    if(cfg){const c=JSON.parse(cfg);S.config=c;document.getElementById('cfgEmail').value=c.email||'pablosarria@urpihospedajes.com';document.getElementById('cfgTel').value=c.tel||'00 34 822 098 235';}
+    if(cfg){const c=JSON.parse(cfg);S.config=c;
+      const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
+      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 235';
+    }
   }catch(e){S.huespedes=[];S.festivos=[];}
   actualizarUI();
 }
@@ -513,7 +523,7 @@ function actualizarUI(){
   document.getElementById('fCnt').textContent=S.festivos.length;
   const keys=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('urpi_'))keys.push(k);}}catch(e){}
   document.getElementById('sfooter').textContent=`${S.huespedes.length} huésp. · ${S.festivos.length} festivos`;
-  document.getElementById('storageInfo').textContent=`Clave activa: ${storKey()} · Claves guardadas: ${keys.length}`;
+  document.getElementById('storageInfo').textContent=`Huéspedes globales · Festivos por quincena (${festKey()}) · Claves: ${keys.length}`;
 }
 
 function cambiarQ(){
@@ -1297,10 +1307,10 @@ function guardarConfig(){
 }
 function renderConfig(){actualizarUI();}
 function limpiarQuincena(){
-  if(!confirm(`¿Eliminar todos los datos de la quincena ${S.qTipo===1?'1ª':'2ª'} de ${MESES[S.qMes]} ${S.qAno}?`))return;
+  if(!confirm(`¿Eliminar todos los huéspedes y festivos?`))return;
   S.huespedes=[];S.festivos=[];
   guardar();renderH();renderF();
-  alert('✓ Datos de la quincena eliminados');
+  alert('✓ Datos eliminados');
 }
 function exportarJSON(){
   const blob=new Blob([JSON.stringify({quincena:{tipo:S.qTipo,mes:S.qMes,ano:S.qAno},huespedes:S.huespedes,festivos:S.festivos},null,2)],{type:'application/json'});
@@ -1562,51 +1572,58 @@ function renderCerrar(){
 }
 
 function cerrarQuincena(){
-  const dm=new Date(S.qAno,S.qMes,0).getDate();
   let nTipo,nMes,nAno;
   if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
   else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
 
-  // Filtrar los que continúan
-  const continuan=S.huespedes.filter(h=>{
-    if(!h.fechaSalida)return true;
-    const sal=pd(h.fechaSalida);
-    return sal&&sal>=S.qFin;
-  });
+  // Con la nueva arquitectura los huespedes son globales
+  // Solo necesitamos:
+  // 1. Quitar fecha de salida a los que continuarán (los que salieron en esta quincena se quedan con su fecha)
+  // 2. Actualizar fecha de entrada de los que continúan al inicio de la nueva quincena
+  // 3. Resetear snack y picnic para la nueva quincena
+  // 4. Cambiar a la nueva quincena
 
-  if(!continuan.length&&!confirm('No hay huéspedes que continúen. ¿Cerrar igualmente?'))return;
-
-  // Calcular primer día de la siguiente quincena
   const nIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
   const nIniStr=fmtISO(nIni);
 
-  // Preparar huéspedes para la siguiente quincena
-  const nuevos=continuan.map(h=>({
-    ...h,
-    id:Date.now()+Math.random(),
-    fechaEntrada:nIniStr,
-    fechaSalida:'',
-    picnic:false,
-    snackDias:0,
-    minDias:h.minDias||0
-  }));
+  const continuan=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return true;
+    const sal=pd(h.fechaSalida);
+    return !sal||sal>=S.qFin;
+  });
+  const salen=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return false;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal<S.qFin;
+  });
 
-  // Guardar estado actual primero
-  guardar();
+  if(!confirm(`¿Cerrar quincena? ${continuan.length} huéspedes continuarán en la siguiente. ${salen.length} se van y quedarán en el historial.`))return;
 
-  // Cambiar a la nueva quincena
-  S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
-  S.huespedes=nuevos;
+  // Actualizar los que continúan para la nueva quincena
+  continuan.forEach(h=>{
+    h.fechaEntrada=nIniStr;
+    h.fechaSalida='';
+    h.picnic=false;
+    h.snackDias=0;
+  });
+
+  // Los que se fueron: mantenerlos con su fecha de salida (historial)
+  // pero marcarlos como inactivos para no facturarlos
+  salen.forEach(h=>{h.activo=false;});
+
+  // Filtrar: solo los que continúan en la lista activa
+  S.huespedes=continuan;
   S.festivos=[];
 
-  // Actualizar selectores
+  // Cambiar a nueva quincena
+  S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
   document.getElementById('sQ').value=nTipo;
   document.getElementById('sM').value=nMes;
   document.getElementById('sA').value=nAno;
   cambiarQ();
   guardar();
 
-  const msg=`✓ Quincena cerrada. ${nuevos.length} huésped(es) traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}. Los festivos se han reseteado — añade los nuevos si los hay.`;
+  const msg=`✓ ${continuan.length} huéspedes traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}. Festivos reseteados.`;
   showMsg('cerrar',msg,'ok');
   renderCerrar();
 }
