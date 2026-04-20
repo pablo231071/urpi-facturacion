@@ -701,8 +701,11 @@ function parsPersonas(txt){
   }
 
   const out=[];
+  console.log('parsPersonas lineas:', lineas);
   for(let i=0;i<lineas.length;i++){
-    const l=lineas[i];if(!esNombre(l))continue;
+    const l=lineas[i];
+    console.log('linea:', JSON.stringify(l), 'esNombre:', esNombre(l));
+    if(!esNombre(l))continue;
     const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
     const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
     let fnac='';
