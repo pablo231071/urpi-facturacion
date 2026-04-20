@@ -703,7 +703,7 @@ function parsPersonas(txt){
   const out=[];
   for(let i=0;i<lineas.length;i++){
     const l=lineas[i];if(!esNombre(l))continue;
-    const am=l.match(/(\(\d+)\s+a[ñn]os?\)/i);
+    const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
     const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
     let fnac='';
     for(let j=i+1;j<Math.min(i+5,lineas.length);j++){
@@ -864,12 +864,16 @@ async function addManual(){
     fechaEntrada:fechaEnt,
     fechaSalida:fechaSal
   };
-  const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
-  if(ex){
-    // Actualizar el existente
-    Object.assign(ex,datos);
+  // Si estamos editando un huésped existente por ID
+  if(window._editandoId){
+    const idx=S.huespedes.findIndex(h=>String(h.id)===String(window._editandoId));
+    if(idx>=0){S.huespedes[idx]={...S.huespedes[idx],...datos};}
+    else{S.huespedes.push({id:window._editandoId,...datos});}
+    window._editandoId=null;
   } else {
-    S.huespedes.push({id:Date.now(),...datos});
+    const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
+    if(ex){Object.assign(ex,datos);}
+    else{S.huespedes.push({id:Date.now()+Math.random(),...datos});}
   }
   await guardar();
   document.getElementById('mNombre').value='';
@@ -970,14 +974,14 @@ async function editH(id){
   document.getElementById('mNombre').value=h.nombre;
   document.getElementById('mFnac').value=h.fnac||'';
   document.getElementById('mHostal').value=h.hostal;
-  document.getElementById('mTipo').value=h.fechaEntrada?'INICIO':'FIN';
-  document.getElementById('mFecha').value=h.fechaEntrada||h.fechaSalida||'';
+  document.getElementById('mFechaEnt').value=h.fechaEntrada||'';
+  document.getElementById('mFechaSal').value=h.fechaSalida||'';
   document.getElementById('mCabeza').value=h.cabeza?'si':'no';
   document.getElementById('mPicnic').value=h.picnic?'si':'no';
   document.getElementById('mMin').value=h.minDias||0;
   document.getElementById('mSnack').value=h.snackDias||0;
-  S.huespedes=S.huespedes.filter(x=>String(x.id)!==String(id));
-  guardar();
+  // Guardar el ID que se está editando para actualizarlo al guardar
+  window._editandoId=id;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('p-manual').classList.add('on');
