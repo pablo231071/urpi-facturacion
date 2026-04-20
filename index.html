@@ -303,36 +303,36 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
   </div>
   <div id="msg-manual"></div>
   <div class="card">
-    <div class="g3" style="margin-bottom:10px">
-      <div class="fg"><label>Tipo</label>
-        <select id="mTipo"><option value="INICIO">Inicio de estancia</option><option value="FIN">Fin de estancia</option></select>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg" style="grid-column:span 2">
+        <label>Nombre completo</label>
+        <input type="text" id="mNombre" placeholder="NOMBRE APELLIDO APELLIDO">
       </div>
+    </div>
+    <div class="g3" style="margin-bottom:10px">
       <div class="fg"><label>Hostal</label>
         <select id="mHostal">
           <option>Mencey</option><option>La Molina</option><option>La Hostería</option>
           <option>Milema</option><option>Casa Lima</option><option>María Cristina</option>
         </select>
       </div>
-      <div class="fg"><label>Fecha</label><input type="date" id="mFecha"></div>
+      <div class="fg"><label>Fecha entrada (dejar vacío = inicio quincena)</label><input type="date" id="mFechaEnt"></div>
+      <div class="fg"><label>Fecha salida (dejar vacío = fin quincena)</label><input type="date" id="mFechaSal"></div>
     </div>
     <div class="g3" style="margin-bottom:10px">
-      <div class="fg" style="grid-column:span 2">
-        <label>Nombre completo</label>
-        <input type="text" id="mNombre" placeholder="NOMBRE APELLIDO APELLIDO">
-      </div>
       <div class="fg"><label>Fecha de nacimiento</label><input type="date" id="mFnac"></div>
-    </div>
-    <div class="g4" style="margin-bottom:12px">
       <div class="fg"><label>Cabeza de familia</label>
         <select id="mCabeza"><option value="no">No</option><option value="si">Sí</option></select>
       </div>
       <div class="fg"><label>Picnic de salida</label>
         <select id="mPicnic"><option value="no">No</option><option value="si">Sí</option></select>
       </div>
+    </div>
+    <div class="g2" style="margin-bottom:12px">
       <div class="fg"><label>Min iniciación (días)</label><input type="number" id="mMin" value="0" min="0"></div>
       <div class="fg"><label>Snack escolar (días)</label><input type="number" id="mSnack" value="0" min="0"></div>
     </div>
-    <button class="btn btn-dark" onclick="addManual()">Añadir huésped</button>
+    <button class="btn btn-dark" onclick="addManual()">Guardar huésped</button>
   </div>
 </div>
 
@@ -850,27 +850,51 @@ function cancelarPrev(){document.getElementById('prevArea').style.display='none'
 async function addManual(){
   const nombre=document.getElementById('mNombre').value.trim();
   if(!nombre){showMsg('manual','Introduce el nombre del huésped','err');return;}
-  const tipo=document.getElementById('mTipo').value;
   const hostal=document.getElementById('mHostal').value;
-  const fecha=document.getElementById('mFecha').value;
+  const fechaEnt=document.getElementById('mFechaEnt').value;
+  const fechaSal=document.getElementById('mFechaSal').value;
+  const datos={
+    nombre,
+    fnac:document.getElementById('mFnac').value,
+    hostal,
+    cabeza:document.getElementById('mCabeza').value==='si',
+    picnic:document.getElementById('mPicnic').value==='si',
+    minDias:parseInt(document.getElementById('mMin').value)||0,
+    snackDias:parseInt(document.getElementById('mSnack').value)||0,
+    fechaEntrada:fechaEnt,
+    fechaSalida:fechaSal
+  };
   const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
-  const d={nombre,fnac:document.getElementById('mFnac').value,hostal,cabeza:document.getElementById('mCabeza').value==='si',picnic:document.getElementById('mPicnic').value==='si',minDias:parseInt(document.getElementById('mMin').value)||0,snackDias:parseInt(document.getElementById('mSnack').value)||0};
-  if(tipo==='INICIO'){if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}else S.huespedes.push({id:Date.now(),...d,fechaEntrada:fecha,fechaSalida:''});}
-  else{if(ex){ex.fechaSalida=fecha;if(d.picnic)ex.picnic=true;}else S.huespedes.push({id:Date.now(),...d,fechaEntrada:'',fechaSalida:fecha});}
+  if(ex){
+    // Actualizar el existente
+    Object.assign(ex,datos);
+  } else {
+    S.huespedes.push({id:Date.now(),...datos});
+  }
   await guardar();
-  document.getElementById('mNombre').value='';document.getElementById('mFnac').value='';
-  showMsg('manual','✓ Huésped añadido correctamente','ok');
+  document.getElementById('mNombre').value='';
+  document.getElementById('mFnac').value='';
+  document.getElementById('mFechaEnt').value='';
+  document.getElementById('mFechaSal').value='';
+  showMsg('manual','✓ Huésped guardado correctamente','ok');
+  cntNav();
 }
 
 function calcDias(h){
-  let ini=h.fechaEntrada?pd(h.fechaEntrada):null;
-  let fin=h.fechaSalida?pd(h.fechaSalida):null;
-  // Normalizar al mismo punto horario para evitar desfases
+  // Si no hay quincena definida, no calcular
+  if(!S.qIni||!S.qFin)return{dias:0,ini:new Date(),fin:new Date()};
   const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
-  if(!ini||norm(ini)<norm(S.qIni))ini=new Date(S.qIni);
-  if(!fin||norm(fin)>norm(S.qFin))fin=new Date(S.qFin);
-  ini=norm(ini);fin=norm(fin);
-  if(ini>fin)return{dias:0,ini:S.qIni,fin:S.qFin};
+  const qIni=norm(S.qIni);
+  const qFin=norm(S.qFin);
+  // Fecha entrada: si no hay o es anterior a la quincena, usar inicio de quincena
+  let ini=h.fechaEntrada?pd(h.fechaEntrada):null;
+  ini=(!ini||norm(ini)<qIni)?new Date(qIni):norm(ini);
+  // Fecha salida: si no hay o es posterior a la quincena, usar fin de quincena
+  let fin=h.fechaSalida?pd(h.fechaSalida):null;
+  fin=(!fin||norm(fin)>qFin)?new Date(qFin):norm(fin);
+  // Si la salida es antes del inicio de la quincena, 0 dias
+  if(fin<qIni)return{dias:0,ini:qIni,fin:qIni};
+  if(ini>qFin)return{dias:0,ini:qFin,fin:qFin};
   return{dias:Math.round((fin-ini)/86400000)+1,ini,fin};
 }
 function getTarifas(){
