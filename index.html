@@ -862,9 +862,12 @@ async function addManual(){
 function calcDias(h){
   let ini=h.fechaEntrada?pd(h.fechaEntrada):null;
   let fin=h.fechaSalida?pd(h.fechaSalida):null;
-  if(!ini||ini<S.qIni)ini=new Date(S.qIni);
-  if(!fin||fin>S.qFin)fin=new Date(S.qFin);
-  if(!ini||!fin||ini>fin)return{dias:0,ini:S.qIni,fin:S.qFin};
+  // Normalizar al mismo punto horario para evitar desfases
+  const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  if(!ini||norm(ini)<norm(S.qIni))ini=new Date(S.qIni);
+  if(!fin||norm(fin)>norm(S.qFin))fin=new Date(S.qFin);
+  ini=norm(ini);fin=norm(fin);
+  if(ini>fin)return{dias:0,ini:S.qIni,fin:S.qFin};
   return{dias:Math.round((fin-ini)/86400000)+1,ini,fin};
 }
 function getTarifas(){
