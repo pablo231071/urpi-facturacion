@@ -685,7 +685,7 @@ function parsPersonas(txt){
     // pueden ser partes de un nombre dividido
     const palabras=l.split(/\s+/).filter(p=>p.length>0);
     const esMayus=palabras.length>0&&palabras.every(p=>/^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑA-ZÁÉÍÓÚÜÑa-záéíóúüñ]*$/.test(p));
-    if(esMayus&&palabras.length<=2&&i+1<rawLineas.length){
+    if(esMayus&&palabras.length===1&&i+1<rawLineas.length){
       const sig=rawLineas[i+1].trim();
       const sigPal=sig.split(/\s+/).filter(p=>p.length>0);
       const sigMayus=sigPal.length>0&&sigPal.every(p=>/^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑA-ZÁÉÍÓÚÜÑa-záéíóúüñ]*$/.test(p));
