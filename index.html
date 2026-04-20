@@ -672,11 +672,35 @@ function detHostal(txt){
   return null;
 }
 function parsPersonas(txt){
-  const lineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  // Primero unir líneas cortas consecutivas que pueden ser apellidos separados
+  // Ej: "GREEIISSYS VIOLETA" + "VILLEGAS BARRIOS" -> "GREEIISSYS VIOLETA VILLEGAS BARRIOS"
+  const rawLineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const lineas=[];
+  for(let i=0;i<rawLineas.length;i++){
+    const l=rawLineas[i];
+    // Si la línea es corta (1-2 palabras en mayúsculas) y la siguiente también,
+    // pueden ser partes de un nombre dividido
+    const palabras=l.split(/\s+/).filter(p=>p.length>0);
+    const esMayus=palabras.length>0&&palabras.every(p=>/^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑA-ZÁÉÍÓÚÜÑa-záéíóúüñ]*$/.test(p));
+    if(esMayus&&palabras.length<=2&&i+1<rawLineas.length){
+      const sig=rawLineas[i+1].trim();
+      const sigPal=sig.split(/\s+/).filter(p=>p.length>0);
+      const sigMayus=sigPal.length>0&&sigPal.every(p=>/^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑA-ZÁÉÍÓÚÜÑa-záéíóúüñ]*$/.test(p));
+      // No es fecha, no es nacionalidad, no es skip
+      if(sigMayus&&!esNac(sig)&&!esSkip(sig)&&!esCabeceraEmail(sig)&&!/^\d/.test(sig)){
+        // Unir las dos líneas
+        lineas.push(l+' '+sig);
+        i++; // saltar la siguiente
+        continue;
+      }
+    }
+    lineas.push(l);
+  }
+
   const out=[];
   for(let i=0;i<lineas.length;i++){
     const l=lineas[i];if(!esNombre(l))continue;
-    const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
+    const am=l.match(/(\(\d+)\s+a[ñn]os?\)/i);
     const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
     let fnac='';
     for(let j=i+1;j<Math.min(i+5,lineas.length);j++){
@@ -689,17 +713,26 @@ function parsPersonas(txt){
   }
   return out;
 }
+function splitCorreos(txt){
+  // Dividir texto en correos individuales cuando hay varios pegados juntos
+  // Se separan por "Asunto:" / "Subject:" que indica inicio de cabecera de correo reenviado
+  const separadores=txt.split(/(?=(?:Asunto|Subject|ASUNTO):\s*(?:INICIO|FIN|RE:|FW:))/i);
+  // Si no hay separadores, devolver el texto completo
+  if(separadores.length<=1)return[txt];
+  return separadores.filter(s=>s.trim().length>10);
+}
 
-function procesarCorreo(){
-  const txt=document.getElementById('txtCorreo').value.trim();
-  if(!txt)return;
+function procesarCorreoUnico(txt){
   const tipo=/FIN DE ESTANCIA/i.test(txt)?'FIN':'INICIO';
   const hostal=detHostal(txt);
   const picnicG=/PICNIC/i.test(txt);
+  // Buscar la primera fecha que aparezca en el texto
   let fecha='';
-  const fm=txt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if(fm)fecha=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;
-  else fecha=fmtISO(new Date());
+  const matches=[...txt.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g)];
+  if(matches.length>0){
+    const m=matches[0];
+    fecha=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  } else fecha=fmtISO(new Date());
   const personas=parsPersonas(txt);
   if(picnicG&&tipo==='FIN')personas.forEach(p=>p.picnic=true);
   personas.forEach(p=>{
@@ -710,12 +743,29 @@ function procesarCorreo(){
       if(entD&&salD)p.snackDias=calcLectivos(entD,salD);
     }
   });
-  document.getElementById('pTipo').value=tipo;
-  if(hostal)document.getElementById('pHostal').value=hostal;
-  document.getElementById('pFecha').value=fecha;
-  document.getElementById('detectMsg').innerHTML=`<strong>${tipo==='INICIO'?'Inicio':'Fin'} de estancia</strong>${hostal?' en <strong>'+hostal+'</strong>':''}. <strong>${personas.length}</strong> persona(s) detectada(s).${picnicG?' Picnic solicitado.':''}`;
-  window._prev=personas;
-  renderPrev(personas);
+  return{tipo,hostal,fecha,personas,picnicG};
+}
+
+function procesarCorreo(){
+  const txt=document.getElementById('txtCorreo').value.trim();
+  if(!txt)return;
+
+  const correos=splitCorreos(txt);
+
+  // Si hay múltiples correos, procesar el primero (el más reciente, arriba)
+  // y mostrar aviso de que hay más
+  const primero=procesarCorreoUnico(correos[0]);
+
+  document.getElementById('pTipo').value=primero.tipo;
+  if(primero.hostal)document.getElementById('pHostal').value=primero.hostal;
+  document.getElementById('pFecha').value=primero.fecha;
+
+  const multiMsg=correos.length>1?` <span style="color:#b45309">⚠ Se detectaron ${correos.length} correos — mostrando el primero. Confirma y vuelve a interpretar para el siguiente.</span>`:'';
+  document.getElementById('detectMsg').innerHTML=`<strong>${primero.tipo==='INICIO'?'Inicio':'Fin'} de estancia</strong>${primero.hostal?' en <strong>'+primero.hostal+'</strong>':''}. <strong>${primero.personas.length}</strong> persona(s).${primero.picnicG?' Picnic solicitado.':''}${multiMsg}`;
+
+  window._prev=primero.personas;
+  window._correosRestantes=correos.slice(1);
+  renderPrev(primero.personas);
   document.getElementById('prevArea').style.display='block';
 }
 
