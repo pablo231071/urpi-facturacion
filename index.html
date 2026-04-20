@@ -342,6 +342,9 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     <div class="page-title">Huéspedes registrados</div>
     <div class="page-sub" id="hSub">Lista de huéspedes activos en la quincena</div>
   </div>
+  <div style="margin-bottom:12px">
+    <input type="text" id="hBuscar" placeholder="Buscar por nombre..." oninput="renderH()" style="max-width:320px">
+  </div>
   <div id="hContent"></div>
 </div>
 
@@ -897,8 +900,11 @@ function renderH(){
   if(!S.huespedes.length){
     a.innerHTML='<div class="empty"><div class="empty-icon">◉</div><div class="empty-txt">Sin huéspedes registrados. Empieza pegando un correo de CEAR.</div></div>';return;
   }
-  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
-  document.getElementById('hSub').textContent=`${S.huespedes.length} huéspedes · ${Object.keys(byH).length} hostales`;
+  const buscar=(document.getElementById('hBuscar')?.value||'').toUpperCase().trim();
+  const filtrados=buscar?S.huespedes.filter(h=>h.nombre.toUpperCase().includes(buscar)):S.huespedes;
+  if(!filtrados.length){a.innerHTML='<div class="empty"><div class="empty-txt">No se encontró ningún huésped con ese nombre.</div></div>';return;}
+  const byH={};filtrados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  document.getElementById('hSub').textContent=`${filtrados.length} huéspedes · ${Object.keys(byH).length} hostales`;
   a.innerHTML=Object.entries(byH).map(([hostal,hs])=>{
     const tot=hs.reduce((s,h)=>s+calcImp(h).total,0);
     return `<div class="hsect">
