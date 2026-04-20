@@ -6,6 +6,7 @@
 <title>URPI · Facturación CEAR</title>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -490,32 +491,81 @@ const HOSTALES={
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','UCRANIA'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION'];
 
+// Supabase config
+const SUPA_URL='https://oajkayrhpvytfgtcytmt.supabase.co';
+const SUPA_KEY='sb_publishable_VhfKugYf4t5wUWlUjtD3jA_8EsjeZKs';
+let supa=null;
+async function initSupa(){
+  if(supa)return;
+  const {createClient}=supabase;
+  supa=createClient(SUPA_URL,SUPA_KEY);
+}
+
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
 function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
-// Huespedes: clave global unica — persisten independientemente de la quincena
-function guardar(){
+
+async function guardar(){
+  await initSupa();
   try{
-    localStorage.setItem('urpi_huespedes',JSON.stringify(S.huespedes));
-    localStorage.setItem(festKey(),JSON.stringify(S.festivos));
+    // Guardar config en localStorage (es pequeño y local)
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
-  }catch(e){}
+    // Guardar festivos en localStorage por quincena
+    localStorage.setItem(festKey(),JSON.stringify(S.festivos));
+    // Huespedes en Supabase — sincronizacion completa
+    // 1. Borrar todos los existentes
+    await supa.from('huespedes').delete().neq('id','__never__');
+    // 2. Insertar los actuales si hay
+    if(S.huespedes.length>0){
+      const rows=S.huespedes.map(h=>({
+        id:String(h.id),
+        nombre:h.nombre,
+        fnac:h.fnac||'',
+        hostal:h.hostal,
+        fecha_entrada:h.fechaEntrada||'',
+        fecha_salida:h.fechaSalida||'',
+        cabeza:!!h.cabeza,
+        picnic:!!h.picnic,
+        min_dias:h.minDias||0,
+        snack_dias:h.snackDias||0,
+        importado:!!h.importado
+      }));
+      await supa.from('huespedes').insert(rows);
+    }
+  }catch(e){console.error('Error guardando:',e);}
   actualizarUI();
 }
-function cargar(){
+
+async function cargar(){
+  await initSupa();
   try{
-    // Huespedes: siempre la misma clave global
-    const h=localStorage.getItem('urpi_huespedes');
-    S.huespedes=h?JSON.parse(h):[];
-    // Festivos: por quincena
+    // Cargar huespedes desde Supabase
+    const{data,error}=await supa.from('huespedes').select('*').order('nombre');
+    if(!error&&data){
+      S.huespedes=data.map(h=>({
+        id:h.id,
+        nombre:h.nombre,
+        fnac:h.fnac||'',
+        hostal:h.hostal,
+        fechaEntrada:h.fecha_entrada||'',
+        fechaSalida:h.fecha_salida||'',
+        cabeza:h.cabeza,
+        picnic:h.picnic,
+        minDias:h.min_dias||0,
+        snackDias:h.snack_dias||0,
+        importado:h.importado
+      }));
+    }
+    // Festivos desde localStorage por quincena
     const f=localStorage.getItem(festKey());
     S.festivos=f?JSON.parse(f):[];
+    // Config
     const cfg=localStorage.getItem('urpi_config');
     if(cfg){const c=JSON.parse(cfg);S.config=c;
       const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
-      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 235';
+      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 ';
     }
-  }catch(e){S.huespedes=[];S.festivos=[];}
+  }catch(e){console.error('Error cargando:',e);S.huespedes=[];S.festivos=[];}
   actualizarUI();
 }
 function actualizarUI(){
@@ -526,7 +576,7 @@ function actualizarUI(){
   document.getElementById('storageInfo').textContent=`Huéspedes globales · Festivos por quincena (${festKey()}) · Claves: ${keys.length}`;
 }
 
-function cambiarQ(){
+async function cambiarQ(){
   S.qTipo=parseInt(document.getElementById('sQ').value);
   S.qMes=parseInt(document.getElementById('sM').value);
   S.qAno=parseInt(document.getElementById('sA').value);
@@ -534,7 +584,7 @@ function cambiarQ(){
   S.qIni=S.qTipo===1?new Date(S.qAno,S.qMes-1,1):new Date(S.qAno,S.qMes-1,16);
   S.qFin=S.qTipo===1?new Date(S.qAno,S.qMes-1,15):new Date(S.qAno,S.qMes-1,dm);
   document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
-  cargar();
+  await cargar();
 }
 
 function fmt(d){return d?d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
@@ -722,7 +772,7 @@ function renderPrevRow(i){
   }
 }
 
-function confirmar(){
+async function confirmar(){
   const tipo=document.getElementById('pTipo').value;
   const hostal=document.getElementById('pHostal').value;
   const fecha=document.getElementById('pFecha').value;
@@ -738,13 +788,13 @@ function confirmar(){
       else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     }
   });
-  guardar();cancelarPrev();
+  await guardar();cancelarPrev();
   document.getElementById('txtCorreo').value='';
   showMsg('correos',`✓ ${personas.length} huésped(es) registrados correctamente`,'ok');
 }
 function cancelarPrev(){document.getElementById('prevArea').style.display='none';}
 
-function addManual(){
+async function addManual(){
   const nombre=document.getElementById('mNombre').value.trim();
   if(!nombre){showMsg('manual','Introduce el nombre del huésped','err');return;}
   const tipo=document.getElementById('mTipo').value;
@@ -754,7 +804,7 @@ function addManual(){
   const d={nombre,fnac:document.getElementById('mFnac').value,hostal,cabeza:document.getElementById('mCabeza').value==='si',picnic:document.getElementById('mPicnic').value==='si',minDias:parseInt(document.getElementById('mMin').value)||0,snackDias:parseInt(document.getElementById('mSnack').value)||0};
   if(tipo==='INICIO'){if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}else S.huespedes.push({id:Date.now(),...d,fechaEntrada:fecha,fechaSalida:''});}
   else{if(ex){ex.fechaSalida=fecha;if(d.picnic)ex.picnic=true;}else S.huespedes.push({id:Date.now(),...d,fechaEntrada:'',fechaSalida:fecha});}
-  guardar();
+  await guardar();
   document.getElementById('mNombre').value='';document.getElementById('mFnac').value='';
   showMsg('manual','✓ Huésped añadido correctamente','ok');
 }
@@ -832,7 +882,7 @@ function delH(id){
   S.huespedes=S.huespedes.filter(h=>String(h.id)!==String(id));
   guardar();renderH();
 }
-function editH(id){
+async function editH(id){
   const h=S.huespedes.find(x=>String(x.id)===String(id));if(!h)return;
   document.getElementById('mNombre').value=h.nombre;
   document.getElementById('mFnac').value=h.fnac||'';
@@ -851,13 +901,13 @@ function editH(id){
   document.querySelector('[data-page="manual"]').classList.add('active');
 }
 
-function addFestivo(){
+async function addFestivo(){
   const f=document.getElementById('fFecha').value;if(!f)return;
   if(!S.festivos.includes(f)){S.festivos.push(f);S.festivos.sort();}
   document.getElementById('fFecha').value='';
   guardar();renderF();
 }
-function remF(f){S.festivos=S.festivos.filter(x=>x!==f);guardar();renderF();}
+async function remF(f){S.festivos=S.festivos.filter(x=>x!==f);await guardar();renderF();}
 function renderF(){
   const a=document.getElementById('fLista');
   if(!S.festivos.length){a.innerHTML='<span style="font-size:11px;color:var(--gray)">Sin festivos — añade los días festivos de la quincena</span>';return;}
@@ -1306,10 +1356,10 @@ function guardarConfig(){
   alert('✓ Configuración guardada');
 }
 function renderConfig(){actualizarUI();}
-function limpiarQuincena(){
+async function limpiarQuincena(){
   if(!confirm(`¿Eliminar todos los huéspedes y festivos?`))return;
   S.huespedes=[];S.festivos=[];
-  guardar();renderH();renderF();
+  await guardar();renderH();renderF();
   alert('✓ Datos eliminados');
 }
 function exportarJSON(){
@@ -1495,7 +1545,7 @@ async function importarExcels(files){
     }
   }
 
-  guardar();
+  await guardar();
   actualizarUI();
 
   const rows=hostalResults.map(r=>
@@ -1521,7 +1571,7 @@ async function importarExcels(files){
 // ============================================================
 // CERRAR QUINCENA Y PASAR A LA SIGUIENTE
 // ============================================================
-function renderCerrar(){
+async function renderCerrar(){
   const dm=new Date(S.qAno,S.qMes,0).getDate();
   const qFinStr=S.qTipo===1?'15':String(dm);
   const mesNom=MESES[S.qMes];
@@ -1571,7 +1621,7 @@ function renderCerrar(){
     </div>`;
 }
 
-function cerrarQuincena(){
+async function cerrarQuincena(){
   let nTipo,nMes,nAno;
   if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
   else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
@@ -1620,8 +1670,8 @@ function cerrarQuincena(){
   document.getElementById('sQ').value=nTipo;
   document.getElementById('sM').value=nMes;
   document.getElementById('sA').value=nAno;
-  cambiarQ();
-  guardar();
+  await cambiarQ();
+  await guardar();
 
   const msg=`✓ ${continuan.length} huéspedes traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}. Festivos reseteados.`;
   showMsg('cerrar',msg,'ok');
@@ -1639,7 +1689,7 @@ function cerrarQuincena(){
   document.getElementById('sQ').value=q;
 })();
 
-cambiarQ();
+cambiarQ().catch(console.error);
 </script>
 </body>
 </html>
