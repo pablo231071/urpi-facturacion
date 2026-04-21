@@ -727,28 +727,31 @@ function parsPersonas(txt){
   for(let i=0;i<lineas.length;i++){
     const l=lineas[i];
 
-    // Método 1: línea seguida de fecha de nacimiento = nombre seguro
-    const siguienteFecha=i+1<lineas.length&&esFecha(lineas[i+1]);
+    // Limpiar prefijos de cabecera del inicio de la línea
+    const prefijosLimpiar=['Hora','Nombre y Apellidos','Nombre','Apellidos',
+      'Fecha Nac.','Fecha Nacimiento','NIE/Pasaporte','Pasaporte','NIE'];
+    let lLimpia=l;
+    for(const p of prefijosLimpiar){
+      if(lLimpia.toUpperCase().startsWith(p.toUpperCase()))lLimpia=lLimpia.slice(p.length).trim();
+    }
 
-    if(siguienteFecha){
-      // Limpiar posibles palabras de cabecera al inicio
-      let nombre=l;
-      const prefijosLimpiar=['Hora','Nombre y Apellidos','Nombre','Apellidos',
-        'Fecha Nac.','Fecha Nacimiento','NIE/Pasaporte','Pasaporte','NIE'];
-      for(const p of prefijosLimpiar){
-        if(nombre.toUpperCase().startsWith(p.toUpperCase())){
-          nombre=nombre.slice(p.length).trim();
-        }
-      }
+    // Método 1a: línea seguida directamente de fecha de nacimiento
+    const sig1=i+1<lineas.length?lineas[i+1]:'';
+    const sig2=i+2<lineas.length?lineas[i+2]:'';
+    const siguienteFecha=esFecha(sig1);
+    // Método 1b: línea seguida de nacionalidad + fecha (orden: nombre, nac, fnac)
+    const nacLuegofecha=esNac(sig1)&&esFecha(sig2);
+
+    if((siguienteFecha||nacLuegofecha)&&lLimpia.length>=3){
+      const am=lLimpia.match(/\((\d+)\s+a[ñn]os?\)/i);
+      const nombre=lLimpia.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
       if(nombre.length>=3){
-        const am=nombre.match(/\((\d+)\s+a[ñn]os?\)/i);
-        nombre=nombre.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
-        const fnac=lineas[i+1];
-        const fm=fnac.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+        const fnacRaw=siguienteFecha?sig1:sig2;
+        const fm=fnacRaw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
         const fnacISO=fm?`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`:'';
         out.push({nombre,fnac:fnacISO,ageN:am?parseInt(am[1]):null,
           cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
-        i++; // saltar la línea de fecha
+        i+=siguienteFecha?1:2; // saltar líneas procesadas
         continue;
       }
     }
