@@ -492,7 +492,7 @@ const HOSTALES={
   'María Cristina':{dir:'Calle María Cristina, 22 38003 Santa Cruz de Tenerife',cod:'VI_María Cristina'}
 };
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','UCRANIA'];
-const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION'];
+const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','HABITACION'];
 
 // Supabase config
 const SUPA_URL='https://oajkayrhpvytfgtcytmt.supabase.co';
@@ -749,8 +749,9 @@ function splitCorreos(txt){
 }
 
 function esTraslado(txt){
-  return /traslad|cambiar|cambio de hostal|cambio de casa|muda/i.test(txt)&&
-    Object.keys(HOSTALES).some(h=>txt.toUpperCase().includes(h.toUpperCase()));
+  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda/i.test(txt);
+  const tieneHostales=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=2;
+  return tieneKeyword&&tieneHostales;
 }
 
 function parsTraslado(txt){
@@ -790,13 +791,27 @@ function parsTraslado(txt){
     // Hostal de destino: aparece después de "a ", "al ", "al hostal"
     const regDest=new RegExp('(?:AL?\\s+(?:HOSTAL\\s+)?|HACIA\\s+)'+hUp,'i');
     if(regDest.test(txt))destino=h;
-    // Hostal origen: aparece después de "de ", "desde "
+    // Hostal origen: aparece después de "de ", "desde ", o antes de "CAMBIO A"
     const regOri=new RegExp('(?:DE(?:SDE)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:HOSTAL\\s+)?)'+hUp,'i');
     if(regOri.test(txt)&&h!==destino)origen=h;
   }
-  // Fallback: primer hostal = origen, segundo = destino
+
+  // Mejorar detección con patrón "HOSTAL X ... CAMBIO A ... HOSTAL Y"
+  const matchCambio=txt.match(/HOSTAL\s+(\w[\w\s]*?)\s*(?:\n[^\n]*)*?CAMBIO\s+A[:\s]+(?:\n[^\n]*)*?HOSTAL\s+(\w[\w\s]*?)\s*(?:\n|$)/i);
+  if(matchCambio){
+    const origenTxt=matchCambio[1].trim().toUpperCase();
+    const destinoTxt=matchCambio[2].trim().toUpperCase();
+    for(const h of Object.keys(HOSTALES)){
+      if(h.toUpperCase().includes(origenTxt)||origenTxt.includes(h.toUpperCase()))origen=h;
+      if(h.toUpperCase().includes(destinoTxt)||destinoTxt.includes(h.toUpperCase()))destino=h;
+    }
+  }
+
+  // Fallback: primer hostal encontrado en el texto = origen, segundo = destino
   if(!origen&&hostalesEncontrados.length>=1)origen=hostalesEncontrados[0];
   if(!destino&&hostalesEncontrados.length>=2)destino=hostalesEncontrados[1];
+  // Si solo se encontró uno, intentar con el orden de aparición en el texto
+  if(origen===destino)destino=hostalesEncontrados.find(h=>h!==origen)||destino;
   return{personas,fecha,origen,destino};
 }
 
