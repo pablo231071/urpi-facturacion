@@ -492,7 +492,7 @@ const HOSTALES={
   'María Cristina':{dir:'Calle María Cristina, 22 38003 Santa Cruz de Tenerife',cod:'VI_María Cristina'}
 };
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','UCRANIA'];
-const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','HABITACION'];
+const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
 // Supabase config
 const SUPA_URL='https://oajkayrhpvytfgtcytmt.supabase.co';
@@ -674,7 +674,45 @@ function detHostal(txt){
   if(u.includes('LIMA'))return 'Casa Lima';if(u.includes('CRISTINA'))return 'María Cristina';
   return null;
 }
+function esCasaLimaFormat(txt){
+  // Formato Casa Lima: número habitación + nombre + apellidos + NIE + NAC + fnac + fecha
+  return /HABITACI[OÓ]N/i.test(txt)&&/F\.NACIMIENTO/i.test(txt);
+}
+
+function parsPersonasCasaLima(txt){
+  const CABECERAS=['HABITACIÓN','HABITACION','NOMBRE','APELLIDO','NIE/PASAPORTE','NIE',
+    'PASAPORTE','NACIONALIDAD','F.NACIMIENTO','FECHA','HORA','ANTES ALMUERZO',
+    'DESPUÉS ALMUERZO','DESPUES ALMUERZO','BUENOS DÍAS','BUENOS DIAS',
+    'COMUNICAMOS','SALUDOS','GRACIAS'];
+  const lineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const out=[];
+  let i=0;
+  while(i<lineas.length){
+    const l=lineas[i];
+    // Saltar cabeceras
+    if(CABECERAS.some(c=>l.toUpperCase().startsWith(c.toUpperCase()))){i++;continue;}
+    // Número de habitación: entero solo
+    if(/^\d+$/.test(l)&&i+5<lineas.length){
+      const nombre=lineas[i+1]?lineas[i+1].trim():'';
+      const apellidos=lineas[i+2]?lineas[i+2].trim():'';
+      const fnacRaw=lineas[i+5]?lineas[i+5].trim():'';
+      const fm=fnacRaw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+      if(fm&&nombre.length>1&&apellidos.length>1){
+        const nombreCompleto=nombre+' '+apellidos;
+        const fnac=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;
+        out.push({nombre:nombreCompleto,fnac,ageN:null,
+          cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+        i+=7;continue;
+      }
+    }
+    i++;
+  }
+  return out;
+}
+
 function parsPersonas(txt){
+  // Formato especial Casa Lima
+  if(esCasaLimaFormat(txt))return parsPersonasCasaLima(txt);
   // Estrategia: una persona es cualquier línea que va seguida de una fecha de nacimiento
   // O una línea que contiene al menos 2 palabras en mayúsculas y no es cabecera
   const lineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
