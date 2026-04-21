@@ -276,7 +276,7 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
       <div id="detectMsg" class="detect-box"></div>
       <div class="g3" style="margin-bottom:12px">
         <div class="fg"><label>Tipo de movimiento</label>
-          <select id="pTipo"><option value="INICIO">Inicio de estancia</option><option value="FIN">Fin de estancia</option></select>
+          <select id="pTipo"><option value="INICIO">Inicio de estancia</option><option value="FIN">Fin de estancia</option><option value="TRASLADO">Traslado</option></select>
         </div>
         <div class="fg"><label>Hostal</label>
           <select id="pHostal">
@@ -748,7 +748,64 @@ function splitCorreos(txt){
   return separadores.filter(s=>s.trim().length>10);
 }
 
+function esTraslado(txt){
+  return /traslad|cambiar|cambio de hostal|cambio de casa|muda/i.test(txt)&&
+    Object.keys(HOSTALES).some(h=>txt.toUpperCase().includes(h.toUpperCase()));
+}
+
+function parsTraslado(txt){
+  // Detectar hostal origen y destino
+  const hostalesEncontrados=[];
+  for(const h of Object.keys(HOSTALES)){
+    if(txt.toUpperCase().includes(h.toUpperCase()))hostalesEncontrados.push(h);
+  }
+  // Detectar fecha del traslado
+  let fecha='';
+  // Buscar "mañana DD/MM/YYYY" o "el DD/MM/YYYY" o fecha directa
+  const fmManana=txt.match(/ma[ñn]ana[^\d]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/i);
+  const fmFecha=txt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  // También detectar "mañana" sin fecha explícita — usar fecha del mensaje
+  const soloManana=/ma[ñn]ana/i.test(txt)&&!fmManana;
+  if(fmManana){
+    fecha=`${fmManana[3]}-${fmManana[2].padStart(2,'0')}-${fmManana[1].padStart(2,'0')}`;
+  } else if(fmFecha){
+    // La fecha en el correo puede ser la del mensaje, buscar contexto
+    // Si dice "mañana" y hay una fecha, esa fecha es el día del traslado
+    if(/ma[ñn]ana/i.test(txt)){
+      fecha=`${fmFecha[3]}-${fmFecha[2].padStart(2,'0')}-${fmFecha[1].padStart(2,'0')}`;
+    } else {
+      fecha=`${fmFecha[3]}-${fmFecha[2].padStart(2,'0')}-${fmFecha[1].padStart(2,'0')}`;
+    }
+  }
+  // Detectar personas
+  const personas=parsPersonas(txt);
+  // Detectar origen y destino
+  // El origen es el hostal donde estaban (DE / desde)
+  // El destino es el hostal donde van (A / al / hasta)
+  let origen=null,destino=null;
+  const txtUp=txt.toUpperCase();
+  // Buscar patrón "DE [hostal] a/al [hostal]"
+  for(const h of Object.keys(HOSTALES)){
+    const hUp=h.toUpperCase();
+    // Hostal de destino: aparece después de "a ", "al ", "al hostal"
+    const regDest=new RegExp('(?:AL?\\s+(?:HOSTAL\\s+)?|HACIA\\s+)'+hUp,'i');
+    if(regDest.test(txt))destino=h;
+    // Hostal origen: aparece después de "de ", "desde "
+    const regOri=new RegExp('(?:DE(?:SDE)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:HOSTAL\\s+)?)'+hUp,'i');
+    if(regOri.test(txt)&&h!==destino)origen=h;
+  }
+  // Fallback: primer hostal = origen, segundo = destino
+  if(!origen&&hostalesEncontrados.length>=1)origen=hostalesEncontrados[0];
+  if(!destino&&hostalesEncontrados.length>=2)destino=hostalesEncontrados[1];
+  return{personas,fecha,origen,destino};
+}
+
 function procesarCorreoUnico(txt){
+  // Detectar si es traslado
+  if(esTraslado(txt)){
+    const t=parsTraslado(txt);
+    return{tipo:'TRASLADO',hostal:t.destino,hostalOrigen:t.origen,fecha:t.fecha,personas:t.personas,picnicG:false,traslado:t};
+  }
   const tipo=/FIN DE ESTANCIA/i.test(txt)?'FIN':'INICIO';
   const hostal=detHostal(txt);
   const picnicG=/PICNIC/i.test(txt);
@@ -787,10 +844,14 @@ function procesarCorreo(){
   document.getElementById('pFecha').value=primero.fecha;
 
   const multiMsg=correos.length>1?` <span style="color:#b45309">⚠ Se detectaron ${correos.length} correos — mostrando el primero. Confirma y vuelve a interpretar para el siguiente.</span>`:'';
-  document.getElementById('detectMsg').innerHTML=`<strong>${primero.tipo==='INICIO'?'Inicio':'Fin'} de estancia</strong>${primero.hostal?' en <strong>'+primero.hostal+'</strong>':''}. <strong>${primero.personas.length}</strong> persona(s).${primero.picnicG?' Picnic solicitado.':''}${multiMsg}`;
+  const tipoLabel=primero.tipo==='TRASLADO'?`Traslado de <strong>${primero.hostalOrigen||'?'}</strong> a <strong>${primero.hostal||'?'}</strong>`:
+    primero.tipo==='INICIO'?'Inicio de estancia':'Fin de estancia';
+  const hostalLabel=primero.tipo==='TRASLADO'?'':primero.hostal?' en <strong>'+primero.hostal+'</strong>':'';
+  document.getElementById('detectMsg').innerHTML=`<strong>${tipoLabel}</strong>${hostalLabel}. <strong>${primero.personas.length}</strong> persona(s).${primero.picnicG?' Picnic solicitado.':''}${multiMsg}`;
 
   window._prev=primero.personas;
   window._correosRestantes=correos.slice(1);
+  window._traslado=primero.tipo==='TRASLADO'?primero.traslado:null;
   renderPrev(primero.personas);
   document.getElementById('prevArea').style.display='block';
 }
@@ -853,17 +914,40 @@ async function confirmar(){
   const hostal=document.getElementById('pHostal').value;
   const fecha=document.getElementById('pFecha').value;
   const personas=window._prev||[];
+  const traslado=window._traslado||null;
+
   personas.forEach(p=>{
     const key=p.nombre.toUpperCase().trim();
     const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
-    if(tipo==='INICIO'){
+
+    if(tipo==='TRASLADO'&&traslado){
+      // Calcular día anterior al traslado para el hostal origen
+      const dTraslado=pd(fecha);
+      const dAnterior=new Date(dTraslado.getFullYear(),dTraslado.getMonth(),dTraslado.getDate()-1);
+      const fechaAnterior=fmtISO(dAnterior);
+      // Actualizar entrada existente en hostal origen: poner fecha de salida = día anterior
+      if(ex){
+        ex.fechaSalida=fechaAnterior;
+        ex.picnic=false;
+      }
+      // Crear nueva entrada en hostal destino desde el día del traslado
+      S.huespedes.push({
+        id:Date.now()+Math.random(),
+        nombre:p.nombre,fnac:p.fnac,
+        hostal:traslado.destino||hostal,
+        fechaEntrada:fecha,fechaSalida:'',
+        cabeza:p.cabeza,picnic:false,
+        minDias:p.minDias||0,snackDias:p.snackDias||0
+      });
+    } else if(tipo==='INICIO'){
       if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
       else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
-    }else{
+    } else {
       if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
       else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     }
   });
+  window._traslado=null;
   await guardar();cancelarPrev();
   document.getElementById('txtCorreo').value='';
   showMsg('correos',`✓ ${personas.length} huésped(es) registrados correctamente`,'ok');
