@@ -500,7 +500,7 @@ const HOSTALES={
   'Casa Lima':{dir:'Alfredo Martín Reyes, 7 35400 Arucas (Gran Canaria)',cod:'VI_Casa Lima'},
   'María Cristina':{dir:'Calle María Cristina, 22 38003 Santa Cruz de Tenerife',cod:'VI_María Cristina'}
 };
-const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','UCRANIA'];
+const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
 // Supabase config
@@ -722,75 +722,83 @@ function parsPersonasCasaLima(txt){
 function parsPersonas(txt){
   // Formato especial Casa Lima
   if(esCasaLimaFormat(txt))return parsPersonasCasaLima(txt);
-  // Estrategia: una persona es cualquier línea que va seguida de una fecha de nacimiento
-  // O una línea que contiene al menos 2 palabras en mayúsculas y no es cabecera
-  const lineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+
+  // Cabeceras de tabla que se eliminan como líneas completas
+  const CABS_ELIMINAR=['Nombre y Apellidos','Nombre','Apellidos','Fecha Nac.',
+    'Fecha Nacimiento','NIE/Pasaporte','Pasaporte','NIE','Hora',
+    'Fecha + Hora entrada','Fecha + Hora salida','Fecha + Hora',
+    'ANTES DEL ALMUERZO','DESPUÉS DEL ALMUERZO','DESPUES DEL ALMUERZO',
+    'Antes de almuerzo','Después del almuerzo','Antes almuerzo',
+    'Nacionalidad','NACIONALIDAD'];
+
+  // Limpiar y construir array de líneas
+  const lineas=txt.split('\n').map(l=>{
+    let s=l.trim();
+    // Eliminar líneas que son exactamente una cabecera
+    for(const c of CABS_ELIMINAR){
+      if(s.toUpperCase()===c.toUpperCase())return '';
+      // Eliminar si la línea EMPIEZA con la cabecera (cabecera pegada al nombre)
+      if(s.toUpperCase().startsWith(c.toUpperCase()+' ')||
+         s.toUpperCase().startsWith(c.toUpperCase()+'\t')){
+        s=s.slice(c.length).trim();
+      }
+    }
+    return s;
+  }).filter(l=>l.length>0);
+
   const out=[];
-  const esFecha=s=>(/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(s.trim()));
-  const SKIP_LINEAS=['NOMBRE','APELLIDO','FECHA','NACIONALIDAD','NIE','PASAPORTE','HORA',
-    'ESPECIFICAR','DESDE','HASTA','DIAS','USUARIO','ALMUERZO','DESAYUNO','CENA',
-    'INICIO','FIN','ESTANCIA','HOSTAL','BUENAS','BUENOS','INFORMAMOS','GRACIAS',
-    'SALUDOS','RECURSO','FINANCIADO','ANTES','DESPUES','DESPUÉS','MARTES','LUNES',
-    'MIERCOLES','JUEVES','VIERNES','SABADO','DOMINGO','TRANSFERENCIA','PAGO','ENTIDAD'];
+  const esFecha=s=>/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(s.trim());
+  const esNIE=s=>/^[A-Z][0-9]{7}[A-Z]$/.test(s.trim())||/^[A-Z0-9]{6,12}$/.test(s.trim())&&/\d{4,}/.test(s);
 
   for(let i=0;i<lineas.length;i++){
     const l=lineas[i];
+    if(!l||l.length<3)continue;
 
-    // Limpiar prefijos de cabecera del inicio de la línea
-    const prefijosLimpiar=['Hora','Nombre y Apellidos','Nombre','Apellidos',
-      'Fecha Nac.','Fecha Nacimiento','NIE/Pasaporte','Pasaporte','NIE'];
-    let lLimpia=l;
-    for(const p of prefijosLimpiar){
-      if(lLimpia.toUpperCase().startsWith(p.toUpperCase()))lLimpia=lLimpia.slice(p.length).trim();
-    }
-
-    // Método 1a: línea seguida directamente de fecha de nacimiento
     const sig1=i+1<lineas.length?lineas[i+1]:'';
     const sig2=i+2<lineas.length?lineas[i+2]:'';
-    const siguienteFecha=esFecha(sig1);
-    // Método 1b: nombre → nacionalidad → fecha
-    const nacLuegofecha=esNac(sig1)&&esFecha(sig2);
-    // Método 1c: nombre → NIE → nacionalidad → fecha
     const sig3=i+3<lineas.length?lineas[i+3]:'';
-    const esNIE=s=>/^[A-Z0-9]{7,12}$/.test(s.trim())&&/\d/.test(s);
-    const nieLuegofecha=esNIE(sig1)&&esNac(sig2)&&esFecha(sig3);
-    // Método 1d: nombre → nacionalidad → NIE → fecha  
-    const sig4=i+4<lineas.length?lineas[i+4]:'';
-    const nacNieFecha=esNac(sig1)&&esNIE(sig2)&&esFecha(sig3);
 
-    if((siguienteFecha||nacLuegofecha||nieLuegofecha||nacNieFecha)&&lLimpia.length>=3){
-      const am=lLimpia.match(/\((\d+)\s+a[ñn]os?\)/i);
-      const nombre=lLimpia.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
-      if(nombre.length>=3){
-        let fnacRaw='',skip=1;
-        if(siguienteFecha){fnacRaw=sig1;skip=1;}
-        else if(nacLuegofecha){fnacRaw=sig2;skip=2;}
-        else if(nieLuegofecha){fnacRaw=sig3;skip=3;}
-        else if(nacNieFecha){fnacRaw=sig3;skip=3;}
+    const m1a=esFecha(sig1);                              // nombre → fecha
+    const m1b=esNac(sig1)&&esFecha(sig2);                 // nombre → nac → fecha
+    const m1c=esNIE(sig1)&&esNac(sig2)&&esFecha(sig3);   // nombre → NIE → nac → fecha
+    const m1d=esNac(sig1)&&esNIE(sig2)&&esFecha(sig3);   // nombre → nac → NIE → fecha
+
+    if(m1a||m1b||m1c||m1d){
+      // Limpiar edad entre paréntesis del nombre
+      const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
+      const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
+      if(nombre.length>=3&&!esSkip(nombre)&&!esNac(nombre)&&!esFecha(nombre)&&!esNIE(nombre)){
+        let fnacRaw='',skip=0;
+        if(m1a){fnacRaw=sig1;skip=1;}
+        else if(m1b){fnacRaw=sig2;skip=2;}
+        else{fnacRaw=sig3;skip=3;}
         const fm=fnacRaw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
         const fnacISO=fm?`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`:'';
-        out.push({nombre,fnac:fnacISO,ageN:am?parseInt(am[1]):null,
-          cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+        if(!out.find(p=>p.nombre.toUpperCase()===nombre.toUpperCase())){
+          out.push({nombre,fnac:fnacISO,ageN:am?parseInt(am[1]):null,
+            cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+        }
         i+=skip;
         continue;
       }
     }
 
-    // Método 2: nombre clásico (2+ palabras mayúsculas, sin palabras skip)
-    if(!esFecha(l)&&esNombre(l)){
-      const skipEsta=SKIP_LINEAS.some(s=>l.toUpperCase().includes(s));
-      if(!skipEsta){
+    // Método 2: nombre clásico (2+ palabras mayúsculas)
+    if(!esFecha(l)&&esNombre(l)&&!esNIE(l)){
+      const skipLineas=['NOMBRE','APELLIDO','FECHA','NACIONALIDAD','NIE','PASAPORTE','HORA',
+        'ESPECIFICAR','USUARIO','ALMUERZO','INICIO','FIN','ESTANCIA','HOSTAL','BUENAS',
+        'BUENOS','INFORMAMOS','GRACIAS','SALUDOS','RECURSO','FINANCIADO','ANTES','DESPUES',
+        'DESPUÉS','TRANSFERENCIA','PAGO','ENTIDAD','HABITACI','CAMBIO','COMUNICAMOS'];
+      if(!skipLineas.some(s=>l.toUpperCase().includes(s))){
         const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
         const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
-        // Buscar fecha de nacimiento en las siguientes líneas
         let fnac='';
         for(let j=i+1;j<Math.min(i+5,lineas.length);j++){
-          const sig=lineas[j].trim();
-          const fm=sig.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
-          if(fm&&!esNombre(sig)){fnac=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;break;}
-          if(esNombre(sig))break;
+          const s=lineas[j];
+          const fm=s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+          if(fm&&!esNombre(s)){fnac=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;break;}
+          if(esNombre(s))break;
         }
-        // Solo añadir si no está ya
         if(!out.find(p=>p.nombre.toUpperCase()===nombre.toUpperCase())){
           out.push({nombre,fnac,ageN:am?parseInt(am[1]):null,
             cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
