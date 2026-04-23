@@ -748,19 +748,30 @@ function parsPersonas(txt){
     const sig1=i+1<lineas.length?lineas[i+1]:'';
     const sig2=i+2<lineas.length?lineas[i+2]:'';
     const siguienteFecha=esFecha(sig1);
-    // Método 1b: línea seguida de nacionalidad + fecha (orden: nombre, nac, fnac)
+    // Método 1b: nombre → nacionalidad → fecha
     const nacLuegofecha=esNac(sig1)&&esFecha(sig2);
+    // Método 1c: nombre → NIE → nacionalidad → fecha
+    const sig3=i+3<lineas.length?lineas[i+3]:'';
+    const esNIE=s=>/^[A-Z0-9]{7,12}$/.test(s.trim())&&/\d/.test(s);
+    const nieLuegofecha=esNIE(sig1)&&esNac(sig2)&&esFecha(sig3);
+    // Método 1d: nombre → nacionalidad → NIE → fecha  
+    const sig4=i+4<lineas.length?lineas[i+4]:'';
+    const nacNieFecha=esNac(sig1)&&esNIE(sig2)&&esFecha(sig3);
 
-    if((siguienteFecha||nacLuegofecha)&&lLimpia.length>=3){
+    if((siguienteFecha||nacLuegofecha||nieLuegofecha||nacNieFecha)&&lLimpia.length>=3){
       const am=lLimpia.match(/\((\d+)\s+a[ñn]os?\)/i);
       const nombre=lLimpia.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
       if(nombre.length>=3){
-        const fnacRaw=siguienteFecha?sig1:sig2;
+        let fnacRaw='',skip=1;
+        if(siguienteFecha){fnacRaw=sig1;skip=1;}
+        else if(nacLuegofecha){fnacRaw=sig2;skip=2;}
+        else if(nieLuegofecha){fnacRaw=sig3;skip=3;}
+        else if(nacNieFecha){fnacRaw=sig3;skip=3;}
         const fm=fnacRaw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
         const fnacISO=fm?`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`:'';
         out.push({nombre,fnac:fnacISO,ageN:am?parseInt(am[1]):null,
           cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
-        i+=siguienteFecha?1:2; // saltar líneas procesadas
+        i+=skip;
         continue;
       }
     }
@@ -796,6 +807,70 @@ function splitCorreos(txt){
   // Si no hay separadores, devolver el texto completo
   if(separadores.length<=1)return[txt];
   return separadores.filter(s=>s.trim().length>10);
+}
+
+// ============================================================
+// TRASLADO MASIVO (múltiples personas, múltiples hostales)
+// ============================================================
+function esTrasladoMasivo(txt){
+  // Detectar patrón "De X a Y:" con múltiples secciones
+  return (txt.match(/De\s+.+?\s+a\s+.+?:/gi)||[]).length >= 1 &&
+    (/[\*\-\•]\s*\w/m.test(txt) || /UF\d+/i.test(txt));
+}
+
+function parseTrasladoMasivo(txt){
+  const HOSTALES_MAP={
+    'MENCEY':'Mencey','LA MOLINA':'La Molina','MOLINA':'La Molina',
+    'LA HOSTERÍA':'La Hostería','HOSTERÍA':'La Hostería','HOSTERIA':'La Hostería','LA HOSTERIA':'La Hostería',
+    'MILEMA':'Milema','CASA LIMA':'Casa Lima','LIMA':'Casa Lima',
+    'MARÍA CRISTINA':'María Cristina','MARIA CRISTINA':'María Cristina',
+    'Mª CRISTINA':'María Cristina','MA CRISTINA':'María Cristina'
+  };
+  function detectH(s){
+    const u=s.toUpperCase();
+    for(const[k,v] of Object.entries(HOSTALES_MAP)){if(u.includes(k))return v;}
+    return null;
+  }
+  // Fecha del traslado: mañana del correo o fecha explícita
+  let fecha=fmtISO(new Date()); // fallback hoy
+  const fmDate=txt.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if(fmDate)fecha=`${fmDate[3]}-${fmDate[2].padStart(2,'0')}-${fmDate[1].padStart(2,'0')}`;
+  // Si dice "mañana" y no hay fecha explícita, usar mañana
+  if(/ma[ñn]ana/i.test(txt)&&!fmDate){
+    const d=new Date();d.setDate(d.getDate()+1);fecha=fmtISO(d);
+  }
+
+  // Split por secciones "De X a Y:"
+  const grupos=txt.split(/(?=De\s+.+?\s+a\s+.+?:)/i).filter(g=>g.trim());
+  const movimientos=[];
+
+  for(const grupo of grupos){
+    const m=grupo.match(/De\s+(.+?)\s+a\s+(.+?)(?:\s*:|\s*\n)/i);
+    if(!m)continue;
+    const origen=detectH(m[1]);
+    const destino=detectH(m[2]);
+    if(!origen||!destino||origen===destino)continue;
+
+    // Extraer nombres: líneas con * - • o después de UF\d+
+    const nombres=[];
+    for(let linea of grupo.split('\n')){
+      linea=linea.trim();
+      linea=linea.replace(/^[\*\-\•]\s*/,'');
+      linea=linea.replace(/^UF\d+\s*/i,'');
+      linea=linea.replace(/^__.*?__\s*/,'');
+      linea=linea.trim();
+      if(!linea||linea.length<3)continue;
+      if(/^De\s+/i.test(linea))continue;
+      if(/^Habitaci/i.test(linea))continue;
+      if(/^(buenas|pablo|mañana|movimiento|plazas|informar|cambio|tardes|gracias|quedamos|atentas|siguiente|cambios|tarde|almuerzo|cena|parece|como|vamos|entre)/i.test(linea))continue;
+      // Expandir nombres incompletos conocidos
+      if(/^Ianseni$/i.test(linea))linea='IANSENI SANGABI';
+      const palabras=linea.split(/\s+/).filter(p=>p.length>1&&/^[A-ZÁÉÍÓÚÜÑA-Z]/i.test(p));
+      if(palabras.length>=1)nombres.push(linea.trim());
+    }
+    if(nombres.length)movimientos.push({origen,destino,nombres});
+  }
+  return{movimientos,fecha};
 }
 
 function esTraslado(txt){
@@ -866,7 +941,12 @@ function parsTraslado(txt){
 }
 
 function procesarCorreoUnico(txt){
-  // Detectar si es traslado
+  // Detectar si es traslado masivo (múltiples grupos De X a Y)
+  if(esTrasladoMasivo(txt)){
+    const t=parseTrasladoMasivo(txt);
+    return{tipo:'TRASLADO_MASIVO',hostal:null,fecha:t.fecha,personas:[],picnicG:false,trasladoMasivo:t};
+  }
+  // Detectar si es traslado simple
   if(esTraslado(txt)){
     const t=parsTraslado(txt);
     return{tipo:'TRASLADO',hostal:t.destino,hostalOrigen:t.origen,fecha:t.fecha,personas:t.personas,picnicG:false,traslado:t};
@@ -909,6 +989,17 @@ function procesarCorreo(){
   document.getElementById('pFecha').value=primero.fecha;
 
   const multiMsg=correos.length>1?` <span style="color:#b45309">⚠ Se detectaron ${correos.length} correos — mostrando el primero. Confirma y vuelve a interpretar para el siguiente.</span>`:'';
+  if(primero.tipo==='TRASLADO_MASIVO'){
+    const tm=primero.trasladoMasivo;
+    const total=tm.movimientos.reduce((s,m)=>s+m.nombres.length,0);
+    const grupos=tm.movimientos.map(m=>`${m.origen}→${m.destino}(${m.nombres.length})`).join(', ');
+    document.getElementById('detectMsg').innerHTML=`<strong>Traslado masivo</strong>. ${total} persona(s) en ${tm.movimientos.length} grupos: ${grupos}. Fecha: ${primero.fecha}`;
+    window._prev=[];
+    window._trasladoMasivo=tm;
+    renderPrevTrasladoMasivo(tm);
+    document.getElementById('prevArea').style.display='block';
+    return;
+  }
   const tipoLabel=primero.tipo==='TRASLADO'?`Traslado de <strong>${primero.hostalOrigen||'?'}</strong> a <strong>${primero.hostal||'?'}</strong>`:
     primero.tipo==='INICIO'?'Inicio de estancia':'Fin de estancia';
   const hostalLabel=primero.tipo==='TRASLADO'?'':primero.hostal?' en <strong>'+primero.hostal+'</strong>':'';
@@ -947,6 +1038,84 @@ function renderPrev(personas){
       </div>
     </div>`;
   }).join('');
+}
+
+function renderPrevTrasladoMasivo(tm){
+  const a=document.getElementById('personasPrev');
+  let html=`<div class="msg msg-info" style="margin-bottom:12px">
+    Traslado masivo con fecha <strong>${tm.fecha}</strong>.
+    Revisa los grupos y confirma. El sistema actualizará el hostal de cada persona.
+  </div>`;
+  tm.movimientos.forEach((mv,mi)=>{
+    html+=`<div class="card" style="margin-bottom:10px;padding:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--navy)">
+        ${mv.origen} → ${mv.destino} (${mv.nombres.length} personas)
+      </div>`;
+    mv.nombres.forEach((nombre,ni)=>{
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--gray3)">
+        <input type="text" value="${nombre}" style="flex:1;padding:4px 8px;font-size:12px"
+          onchange="window._trasladoMasivo.movimientos[${mi}].nombres[${ni}]=this.value">
+        <span style="font-size:11px;color:var(--gray)">${mv.destino}</span>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  a.innerHTML=html;
+  // Replace confirm button behavior
+  const btnConf=document.querySelector('[onclick="confirmar()"]');
+  if(btnConf){btnConf.setAttribute('onclick','confirmarTrasladoMasivo()');}
+}
+
+async function confirmarTrasladoMasivo(){
+  const tm=window._trasladoMasivo;
+  if(!tm)return;
+  const fecha=tm.fecha;
+  // Calcular día anterior para el hostal origen
+  const dT=pd(fecha);
+  const dAnt=new Date(dT.getFullYear(),dT.getMonth(),dT.getDate()-1);
+  const fechaAnt=fmtISO(dAnt);
+  let procesados=0;
+  let nuevos=0;
+
+  for(const mv of tm.movimientos){
+    for(const nombre of mv.nombres){
+      const key=nombre.toUpperCase().trim();
+      const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key||
+        h.nombre.toUpperCase().includes(key.split(' ')[0])&&
+        h.nombre.toUpperCase().includes(key.split(' ').slice(-1)[0]));
+      if(ex){
+        // Actualizar: poner fecha salida en origen y crear nuevo en destino
+        ex.fechaSalida=fechaAnt;
+        S.huespedes.push({
+          id:Date.now()+Math.random(),
+          nombre:ex.nombre,fnac:ex.fnac,
+          hostal:mv.destino,
+          fechaEntrada:fecha,fechaSalida:'',
+          cabeza:ex.cabeza,picnic:false,
+          minDias:ex.minDias||0,snackDias:ex.snackDias||0
+        });
+        procesados++;
+      } else {
+        // No existe — crear nuevo en destino
+        S.huespedes.push({
+          id:Date.now()+Math.random(),
+          nombre:nombre.trim(),fnac:'',
+          hostal:mv.destino,
+          fechaEntrada:fecha,fechaSalida:'',
+          cabeza:false,picnic:false,minDias:0,snackDias:0
+        });
+        nuevos++;
+      }
+    }
+  }
+  window._trasladoMasivo=null;
+  await guardar();
+  cancelarPrev();
+  document.getElementById('txtCorreo').value='';
+  // Restore confirm button
+  const btnConf=document.querySelector('[onclick="confirmarTrasladoMasivo()"]');
+  if(btnConf){btnConf.setAttribute('onclick','confirmar()');}
+  showMsg('correos',`✓ Traslado masivo procesado: ${procesados} actualizados, ${nuevos} nuevos añadidos`,'ok');
 }
 
 function toggleCabeza(i){
