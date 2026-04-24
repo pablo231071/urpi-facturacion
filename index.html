@@ -552,7 +552,7 @@ async function cargar(){
   await initSupa();
   try{
     // Cargar huespedes desde Supabase
-    const{data,error}=await supa.from('huespedes').select('*').order('nombre');
+    const{data,error}=await supa.from('huespedes').select('*').order('created_at',{ascending:true});
     if(!error&&data){
       S.huespedes=data.map(h=>({
         id:h.id,
