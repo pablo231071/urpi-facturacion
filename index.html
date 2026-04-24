@@ -1723,33 +1723,29 @@ async function generarExcel(){
       }
     }
 
-    // ROW r+1: PAGO / TRANSFERENCIA | BASE IMPONIBLE [L-T] | valor [U]
+    // Helper: borde completo sin merge — celda por celda
+    function filaBorde(row,cFrom,cTo,texto,negrita,size){
+      for(let c=cFrom;c<=cTo;c++){
+        const cell=ws.getCell(row,c);
+        if(c===cFrom&&texto){cell.value=texto;cell.font=F(negrita,size);cell.alignment={horizontal:'left',vertical:'middle'};}
+        cell.border={
+          top:{style:'thin'},bottom:{style:'thin'},
+          left:c===cFrom?{style:'thin'}:null,
+          right:c===cTo?{style:'thin'}:null
+        };
+      }
+    }
+
+    // ROW r+1: BASE IMPONIBLE
     const r1=r+1; ws.getRow(r1).height=20.1;
     sc(ws,r1,1,'PAGO',true,12,'left');
     mg(ws,r1,2,r1,6); sc(ws,r1,2,'TRANSFERENCIA',true,12,'left');
-    mg(ws,r1,12,r1,20); sc(ws,r1,12,'BASE IMPONIBLE',true,12,'left');
-    ws.getCell(r1,12).font=F(true,12);
-    // Aplicar bordes DESPUÉS del merge para que no se sobrescriban
-    for(let c=12;c<=20;c++){
-      ws.getCell(r1,c).border={
-        top:T.thin,bottom:T.thin,
-        left:c===12?T.thin:{style:undefined},
-        right:c===20?T.thin:{style:undefined}
-      };
-    }
+    filaBorde(r1,12,20,'BASE IMPONIBLE',true,12);
     sc(ws,r1,21,Math.round(baseTot*100)/100,true,12,'right','#,##0.00 €',BF);
 
-    // ROW r+2: IGIC [L-S] | % [T] | valor [U]
+    // ROW r+2: IGIC
     const r2=r+2; ws.getRow(r2).height=20.1;
-    mg(ws,r2,12,r2,19); sc(ws,r2,12,'IGIC',true,12,'left');
-    ws.getCell(r2,12).font=F(true,12);
-    for(let c=12;c<=19;c++){
-      ws.getCell(r2,c).border={
-        top:T.thin,bottom:T.thin,
-        left:c===12?T.thin:{style:undefined},
-        right:c===19?T.thin:{style:undefined}
-      };
-    }
+    filaBorde(r2,12,19,'IGIC',true,12);
     sc(ws,r2,20,igicPct,true,12,'center','0%',BF);
     sc(ws,r2,21,igicT,true,12,'right','#,##0.00 €',BF);
 
@@ -1758,19 +1754,11 @@ async function generarExcel(){
     sc(ws,r3,1,'ENTIDAD',true,12,'left');
     mg(ws,r3,2,r3,6); sc(ws,r3,2,'BANCO DE SABADELL',true,12,'left');
 
-    // ROW r+4: Nº CUENTA | TOTAL FACTURA [L-T] | valor [U]
+    // ROW r+4: TOTAL FACTURA
     const r4=r+4; ws.getRow(r4).height=20.1;
     sc(ws,r4,1,'Nº CUENTA',true,12,'left');
     mg(ws,r4,2,r4,6); sc(ws,r4,2,'ES60 0081 0369 01 0001445552',true,12,'left');
-    mg(ws,r4,12,r4,20); sc(ws,r4,12,'TOTAL FACTURA',true,12,'left');
-    ws.getCell(r4,12).font=F(true,12);
-    for(let c=12;c<=20;c++){
-      ws.getCell(r4,c).border={
-        top:T.thin,bottom:T.thin,
-        left:c===12?T.thin:{style:undefined},
-        right:c===20?T.thin:{style:undefined}
-      };
-    }
+    filaBorde(r4,12,20,'TOTAL FACTURA',true,12);
     sc(ws,r4,21,totT,true,12,'right','#,##0.00 €',BF);
   }
 
