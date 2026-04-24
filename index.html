@@ -1445,7 +1445,9 @@ async function generarExcel(){
   const anoFact=document.getElementById('cfgAno').value;
   const email=document.getElementById('cfgEmail')?.value||S.config.email;
   const tel=document.getElementById('cfgTel')?.value||S.config.tel;
-  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  // Ordenar por campo orden antes de agrupar
+  const huespedesOrdenados=[...S.huespedes].sort((a,b)=>(a.orden||0)-(b.orden||0));
+  const byH={};huespedesOrdenados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   const dm=new Date(S.qAno,S.qMes,0).getDate();
   const per=`${S.qTipo===1?'1Q':'2Q'} (${S.qTipo===1?'01-15':'16-'+dm})`;
   const mes=MESES[S.qMes].toUpperCase();
