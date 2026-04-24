@@ -1776,18 +1776,13 @@ async function generarExcel(){
     }
     writeTotals(ws,cur,Math.round(baseTot*100)/100);
 
-    // Configuración de impresión — igual que las facturas originales
-    ws.pageSetup={
-      orientation:'landscape',
-      paperSize:9,
-      scale:76,
-      fitToPage:false,
-      fitToWidth:1,
-      fitToHeight:0,
-      horizontalDpi:300,
-      verticalDpi:300
-    };
-    ws.pageMargins={
+    // Configuración de impresión — sintaxis exacta ExcelJS
+    ws.pageSetup.paperSize=9;
+    ws.pageSetup.orientation='landscape';
+    ws.pageSetup.fitToPage=true;
+    ws.pageSetup.fitToWidth=1;
+    ws.pageSetup.fitToHeight=0;
+    ws.pageSetup.margins={
       left:0.315,right:0.315,
       top:0.433,bottom:0.748,
       header:0.315,footer:0.315
