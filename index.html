@@ -1748,6 +1748,7 @@ async function generarExcel(){
     let cur=writeHeader(ws,1,hostal,nf,fmt(S.qFin),per,mes,email,tel);
     let baseTot=0;let num=1;
     const ROWS_PER_PAGE=14;
+    let rowsEnPagina=0; // contador de filas de datos en la página actual
 
     for(const h of hs){
       const{dias,ini,fin}=calcDias(h);
@@ -1759,18 +1760,31 @@ async function generarExcel(){
       const igic=Math.round(base*igicPct*100)/100;
       const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:h.minDias||0,snackDias:h.snackDias||0};
 
-      if(num>1&&(num-1)%ROWS_PER_PAGE===0){
-        ws.getRow(cur).height=9.95;cur++;
+      // Calcular cuántas filas ocupará este huésped (1 normal + 1 picnic si tiene)
+      const filasNecesarias=h.picnic?2:1;
+
+      // Si no caben en la página actual, añadir salto de página y nueva cabecera
+      if(num>1&&rowsEnPagina+filasNecesarias>ROWS_PER_PAGE){
+        // Salto de página explícito ANTES de la cabecera
+        ws.getRow(cur).height=9.95;
+        ws.addPageBreaks=ws.addPageBreaks||[];
+        const breakRow=cur;
+        cur++;
         cur=writeHeader(ws,cur,hostal,nf,fmt(S.qFin),per,mes,email,tel);
+        // Añadir salto de página en la fila vacía antes de la cabecera
+        ws.getRow(breakRow).addPageBreak=true;
+        try{ws.rowBreaks.push({id:breakRow,man:true});}catch(e){}
+        rowsEnPagina=0;
       }
 
       writeDataRow(ws,cur,num,h,imp,h.cabeza||false);
       baseTot+=base;cur++;
+      rowsEnPagina++;
 
       if(h.picnic){
-        if(num%ROWS_PER_PAGE===0){ws.getRow(cur).height=9.95;cur++;cur=writeHeader(ws,cur,hostal,nf,fmt(S.qFin),per,mes,email,tel);}
         baseTot+=writePicnicRow(ws,cur,num,h,imp,h.cabeza||false);
         cur++;
+        rowsEnPagina++;
       }
       num++;
     }
