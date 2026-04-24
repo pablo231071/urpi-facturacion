@@ -541,7 +541,8 @@ async function guardar(){
         min_dias:h.minDias||0,
         snack_dias:h.snackDias||0,
         importado:!!h.importado,
-        orden:idx
+        orden:idx,
+        tipo_manual:h.tipoManual||''
       }));
       await supa.from('huespedes').insert(rows);
     }
@@ -566,7 +567,8 @@ async function cargar(){
         picnic:h.picnic,
         minDias:h.min_dias||0,
         snackDias:h.snack_dias||0,
-        importado:h.importado
+        importado:h.importado,
+        tipoManual:h.tipo_manual||''
       }));
     }
     // Festivos desde localStorage por quincena
@@ -621,7 +623,18 @@ function edad(fnac,ref){
   if(rM<dM||(rM===dM&&rD<dD))a--;
   return a;
 }
-function tipoH(fnac){const ref=S.qFin||new Date();const e=edad(fnac,ref);return e<3?'bebe':e<18?'menor':'adulto';}
+function tipoH(fnac,h){
+  // Si tiene tipo manual (importado del Excel), usarlo
+  if(h&&h.tipoManual){
+    if(h.tipoManual==='bebe')return 'bebe';
+    if(h.tipoManual==='menor')return 'menor';
+    if(h.tipoManual==='adulto')return 'adulto';
+  }
+  // Si tiene fecha de nacimiento, calcular
+  if(fnac){const ref=S.qFin||new Date();const e=edad(fnac,ref);return e<3?'bebe':e<18?'menor':'adulto';}
+  // Sin datos: adulto por defecto
+  return 'adulto';
+}
 function calcLectivos(ini,fin){
   if(!ini||!fin||!S.qIni||!S.qFin)return 0;
   // El dia de entrada no cuenta para snack (el menor va al cole al dia siguiente)
@@ -1263,7 +1276,7 @@ function getTarifas(){
 function calcImp(h){
   const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
   const{dias,ini,fin}=calcDias(h);
-  const t=tipoH(h.fnac);const bebe=t==='bebe',menor=t==='menor';
+  const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
   const aloj=bebe?0:dias*tar;
   const minI=(h.minDias||0)*pMin;
   const snackI=(h.snackDias||0)*pSnack;
@@ -1755,7 +1768,7 @@ async function generarExcel(){
 
     for(const h of hs){
       const{dias,ini,fin}=calcDias(h);
-      const t=tipoH(h.fnac);const bebe=t==='bebe',menor=t==='menor';
+      const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
       const aloj=bebe?0:dias*tar;
       const minI=(h.minDias||0)*pMin;
       const snackI=(h.snackDias||0)*pSnack;
@@ -1993,6 +2006,12 @@ async function importarExcels(files){
           const celdaNombre=row.getCell(2);
           const esCabeza=celdaNombre.font&&celdaNombre.font.bold===true;
 
+          // Determinar tipo desde col H del Excel
+          const tipoExcel=tipo==='Menor'?'menor':tipo==='Adulto'?'adulto':'adulto';
+          // Detectar bebé: si el importe de alojamiento es 0 y es Menor
+          const alojVal=row.getCell(12).value;
+          const esBebe=tipo==='Menor'&&(alojVal===0||alojVal==='0'||alojVal===null||alojVal==='');
+          const tipoFinal=esBebe?'bebe':tipoExcel;
           S.huespedes.push({
             id:Date.now()+Math.random(),
             nombre,
@@ -2004,7 +2023,8 @@ async function importarExcels(files){
             picnic:false,
             minDias:minCant||0,
             snackDias:snackCant||0,
-            importado:true
+            importado:true,
+            tipoManual:tipoFinal
           });
           imported++;
           totalImportados++;
