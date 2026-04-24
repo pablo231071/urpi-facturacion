@@ -1729,14 +1729,27 @@ async function generarExcel(){
     mg(ws,r1,2,r1,6); sc(ws,r1,2,'TRANSFERENCIA',true,12,'left');
     mg(ws,r1,12,r1,20); sc(ws,r1,12,'BASE IMPONIBLE',true,12,'left');
     ws.getCell(r1,12).font=F(true,12);
-    borderBox(r1,12,20);
+    // Aplicar bordes DESPUÉS del merge para que no se sobrescriban
+    for(let c=12;c<=20;c++){
+      ws.getCell(r1,c).border={
+        top:T.thin,bottom:T.thin,
+        left:c===12?T.thin:{style:undefined},
+        right:c===20?T.thin:{style:undefined}
+      };
+    }
     sc(ws,r1,21,Math.round(baseTot*100)/100,true,12,'right','#,##0.00 €',BF);
 
     // ROW r+2: IGIC [L-S] | % [T] | valor [U]
     const r2=r+2; ws.getRow(r2).height=20.1;
     mg(ws,r2,12,r2,19); sc(ws,r2,12,'IGIC',true,12,'left');
     ws.getCell(r2,12).font=F(true,12);
-    borderBox(r2,12,19);
+    for(let c=12;c<=19;c++){
+      ws.getCell(r2,c).border={
+        top:T.thin,bottom:T.thin,
+        left:c===12?T.thin:{style:undefined},
+        right:c===19?T.thin:{style:undefined}
+      };
+    }
     sc(ws,r2,20,igicPct,true,12,'center','0%',BF);
     sc(ws,r2,21,igicT,true,12,'right','#,##0.00 €',BF);
 
@@ -1751,7 +1764,13 @@ async function generarExcel(){
     mg(ws,r4,2,r4,6); sc(ws,r4,2,'ES60 0081 0369 01 0001445552',true,12,'left');
     mg(ws,r4,12,r4,20); sc(ws,r4,12,'TOTAL FACTURA',true,12,'left');
     ws.getCell(r4,12).font=F(true,12);
-    borderBox(r4,12,20);
+    for(let c=12;c<=20;c++){
+      ws.getCell(r4,c).border={
+        top:T.thin,bottom:T.thin,
+        left:c===12?T.thin:{style:undefined},
+        right:c===20?T.thin:{style:undefined}
+      };
+    }
     sc(ws,r4,21,totT,true,12,'right','#,##0.00 €',BF);
   }
 
