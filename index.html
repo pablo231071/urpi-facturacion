@@ -529,7 +529,7 @@ async function guardar(){
     await supa.from('huespedes').delete().neq('id','__never__');
     // 2. Insertar los actuales si hay
     if(S.huespedes.length>0){
-      const rows=S.huespedes.map(h=>({
+      const rows=S.huespedes.map((h,idx)=>({
         id:String(h.id),
         nombre:h.nombre,
         fnac:h.fnac||'',
@@ -540,7 +540,8 @@ async function guardar(){
         picnic:!!h.picnic,
         min_dias:h.minDias||0,
         snack_dias:h.snackDias||0,
-        importado:!!h.importado
+        importado:!!h.importado,
+        orden:idx
       }));
       await supa.from('huespedes').insert(rows);
     }
@@ -552,7 +553,7 @@ async function cargar(){
   await initSupa();
   try{
     // Cargar huespedes desde Supabase
-    const{data,error}=await supa.from('huespedes').select('*').order('created_at',{ascending:true});
+    const{data,error}=await supa.from('huespedes').select('*').order('orden',{ascending:true,nullsFirst:true});
     if(!error&&data){
       S.huespedes=data.map(h=>({
         id:h.id,
