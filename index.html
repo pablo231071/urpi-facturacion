@@ -1775,6 +1775,23 @@ async function generarExcel(){
       num++;
     }
     writeTotals(ws,cur,Math.round(baseTot*100)/100);
+
+    // Configuración de impresión — igual que las facturas originales
+    ws.pageSetup.orientation='landscape';
+    ws.pageSetup.paperSize=9; // A4
+    ws.pageSetup.scale=76;    // 76% de escala
+    ws.pageSetup.fitToPage=false;
+    ws.pageMargins={
+      left:0.315,right:0.315,
+      top:0.433,bottom:0.748,
+      header:0.315,footer:0.315
+    };
+    ws.views=[{showGridLines:false}];
+    // Área de impresión — toda la hoja
+    ws.printArea=`A1:U${cur+5}`;
+    // Saltos de página cada 14 huéspedes (igual que originales)
+    // Ya se gestiona con writeHeader repetido cada ROWS_PER_PAGE
+
     numFact++;
   }
 
