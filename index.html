@@ -1292,7 +1292,6 @@ function calcImp(h){
   let snackDias=h.snackDias||0;
   if(menor&&!bebe&&ini&&fin){
     snackDias=calcLectivos(ini,fin);
-    console.log('calcImp snack:',h.nombre,'ini:',fmtISO(ini),'fin:',fmtISO(fin),'festivos:',S.festivos,'resultado:',snackDias);
   }
   const snackI=snackDias*pSnack;
   const picnic=0;
@@ -1793,10 +1792,12 @@ async function generarExcel(){
       const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
       const aloj=bebe?0:dias*tar;
       const minI=(h.minDias||0)*pMin;
-      const snackI=(h.snackDias||0)*pSnack;
+      // Recalcular snack con festivos actuales para menores
+      const snackDiasCalc=menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0);
+      const snackI=snackDiasCalc*pSnack;
       const base=Math.round((aloj+minI+snackI)*100)/100;
       const igic=Math.round(base*igicPct*100)/100;
-      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:h.minDias||0,snackDias:h.snackDias||0};
+      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:h.minDias||0,snackDias:snackDiasCalc};
 
       // Calcular cuántas filas ocupará este huésped (1 normal + 1 picnic si tiene)
       const filasNecesarias=h.picnic?2:1;
