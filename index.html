@@ -1286,9 +1286,10 @@ function calcImp(h){
   const{dias,ini,fin}=calcDias(h);
   const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
   const aloj=bebe?0:dias*tar;
-  const minI=(h.minDias||0)*pMin;
+  // Min Iniciación: para bebés = días de estancia automáticamente
+  const minDiasCalc=bebe?dias:(h.minDias||0);
+  const minI=minDiasCalc*pMin;
   // Recalcular snack automáticamente para menores usando festivos actuales
-  // Solo usar el valor guardado si se editó manualmente (h.snackManual)
   let snackDias=h.snackDias||0;
   if(menor&&!bebe&&ini&&fin){
     snackDias=calcLectivos(ini,fin);
@@ -1297,7 +1298,7 @@ function calcImp(h){
   const picnic=0;
   const base=Math.round((aloj+minI+snackI)*100)/100;
   const igic=Math.round(base*igicPct*100)/100;
-  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:h.minDias||0};
+  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
 }
 
 function renderH(){
@@ -1791,13 +1792,15 @@ async function generarExcel(){
       const{dias,ini,fin}=calcDias(h);
       const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
       const aloj=bebe?0:dias*tar;
-      const minI=(h.minDias||0)*pMin;
+      // Min Iniciación: para bebés = días de estancia automáticamente
+      const minDiasCalc=bebe?dias:(h.minDias||0);
+      const minI=minDiasCalc*pMin;
       // Recalcular snack con festivos actuales para menores
       const snackDiasCalc=menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0);
       const snackI=snackDiasCalc*pSnack;
       const base=Math.round((aloj+minI+snackI)*100)/100;
       const igic=Math.round(base*igicPct*100)/100;
-      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:h.minDias||0,snackDias:snackDiasCalc};
+      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:minDiasCalc,snackDias:snackDiasCalc};
 
       // Calcular cuántas filas ocupará este huésped (1 normal + 1 picnic si tiene)
       const filasNecesarias=h.picnic?2:1;
