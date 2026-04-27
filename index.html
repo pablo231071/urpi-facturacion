@@ -2009,6 +2009,16 @@ async function importarExcels(files){
           }
           nombresEnEsteArchivo.add(key);
 
+          // Verificar que el huesped estaba al FINAL de la quincena importada
+          // Si su fecha de salida es antes del fin de la quincena, no importar
+          const hastaRawChk=row.getCell(10).value;
+          if(hastaRawChk){
+            const hastaISOChk=parseExcelDate(hastaRawChk);
+            const fechaFactRaw=ws.getCell(4,20).value;
+            const fechaFactISO=fechaFactRaw?parseExcelDate(fechaFactRaw):'';
+            if(hastaISOChk&&fechaFactISO&&hastaISOChk<fechaFactISO)return;
+          }
+
           // Leer negrita de col B para determinar si es cabeza de familia
           const celdaNombre=row.getCell(2);
           const esCabeza=celdaNombre.font&&celdaNombre.font.bold===true;
