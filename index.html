@@ -1287,11 +1287,17 @@ function calcImp(h){
   const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
   const aloj=bebe?0:dias*tar;
   const minI=(h.minDias||0)*pMin;
-  const snackI=(h.snackDias||0)*pSnack;
+  // Recalcular snack automáticamente para menores usando festivos actuales
+  // Solo usar el valor guardado si se editó manualmente (h.snackManual)
+  let snackDias=h.snackDias||0;
+  if(menor&&!bebe&&ini&&fin){
+    snackDias=calcLectivos(ini,fin);
+  }
+  const snackI=snackDias*pSnack;
   const picnic=0;
   const base=Math.round((aloj+minI+snackI)*100)/100;
   const igic=Math.round(base*igicPct*100)/100;
-  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias:h.snackDias||0,minDias:h.minDias||0};
+  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:h.minDias||0};
 }
 
 function renderH(){
