@@ -1292,6 +1292,7 @@ function calcImp(h){
   let snackDias=h.snackDias||0;
   if(menor&&!bebe&&ini&&fin){
     snackDias=calcLectivos(ini,fin);
+    console.log('calcImp snack:',h.nombre,'ini:',fmtISO(ini),'fin:',fmtISO(fin),'festivos:',S.festivos,'resultado:',snackDias);
   }
   const snackI=snackDias*pSnack;
   const picnic=0;
