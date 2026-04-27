@@ -1286,8 +1286,8 @@ function calcImp(h){
   const{dias,ini,fin}=calcDias(h);
   const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
   const aloj=bebe?0:dias*tar;
-  // Min Iniciación: para bebés = días de estancia automáticamente
-  const minDiasCalc=bebe?dias:(h.minDias||0);
+  // Min Iniciación: siempre manual (h.minDias)
+  const minDiasCalc=h.minDias||0;
   const minI=minDiasCalc*pMin;
   // Recalcular snack automáticamente para menores usando festivos actuales
   let snackDias=h.snackDias||0;
@@ -1701,7 +1701,7 @@ async function generarExcel(){
   function writePicnicRow(ws,r,num,h,imp,bold){
     ws.getRow(r).height=20.1;
     const tipo=imp.bebe||imp.menor?'Menor':'Adulto';
-    const pb=pPicnic,pi=Math.round(pb*igicPct*100)/100,pt=Math.round((pb+pi)*100)/100;
+    const pb=Math.round(pPicnic*100)/100,pi=Math.round(pPicnic*igicPct*100)/100,pt=Math.round((pb+pi)*100)/100;
 
     function wc(c,val,halign,numFmt){
       const cell=ws.getCell(r,c);
@@ -1792,8 +1792,8 @@ async function generarExcel(){
       const{dias,ini,fin}=calcDias(h);
       const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
       const aloj=bebe?0:dias*tar;
-      // Min Iniciación: para bebés = días de estancia automáticamente
-      const minDiasCalc=bebe?dias:(h.minDias||0);
+      // Min Iniciación: siempre manual
+      const minDiasCalc=h.minDias||0;
       const minI=minDiasCalc*pMin;
       // Recalcular snack con festivos actuales para menores
       const snackDiasCalc=menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0);
