@@ -637,12 +637,20 @@ function tipoH(fnac,h){
 }
 function calcLectivos(ini,fin){
   if(!ini||!fin||!S.qIni||!S.qFin)return 0;
-  // El dia de entrada no cuenta para snack (el menor va al cole al dia siguiente)
-  // Solo si la entrada es anterior al inicio de quincena se cuenta desde qIni
-  let desdeBase=new Date(Math.max(ini.getTime(),S.qIni.getTime()));
-  const desde=ini>S.qIni ? new Date(desdeBase.getFullYear(),desdeBase.getMonth(),desdeBase.getDate()+1) : desdeBase;
-  const hasta=new Date(Math.min(fin.getTime(),S.qFin.getTime()));
-  let n=0;const d=new Date(desde);
+  // El dia de entrada NUNCA cuenta para snack — siempre empieza el dia siguiente
+  // Si entró antes de la quincena, el snack empieza desde qIni (primer dia quincena)
+  const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const qIni=norm(S.qIni);
+  const entNorm=norm(ini);
+  let desdeDate;
+  if(entNorm<qIni){
+    desdeDate=new Date(qIni); // entró antes de la quincena: desde primer dia quincena
+  } else {
+    // entró durante la quincena (incluyendo el primer dia): snack desde el dia siguiente
+    desdeDate=new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
+  }
+  const hasta=norm(new Date(Math.min(fin.getTime(),S.qFin.getTime())));
+  let n=0;const d=new Date(desdeDate);
   while(d<=hasta){
     const dow=d.getDay(),iso=fmtISO(d);
     if(dow!==0&&dow!==6&&!S.festivos.includes(iso))n++;
