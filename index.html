@@ -1180,6 +1180,26 @@ async function confirmar(){
   const personas=window._prev||[];
   const traslado=window._traslado||null;
 
+  // VERIFICAR DUPLICADOS EN OTROS HOSTALES antes de guardar
+  if(tipo==='INICIO'){
+    const alertas=[];
+    personas.forEach(p=>{
+      const key=p.nombre.toUpperCase().trim();
+      const enOtroHostal=S.huespedes.find(h=>
+        h.nombre.toUpperCase().trim()===key &&
+        h.hostal!==hostal &&
+        !h.fechaSalida  // solo los que están activos (sin fecha de salida)
+      );
+      if(enOtroHostal){
+        alertas.push(`⚠ ${p.nombre} ya está activo/a en ${enOtroHostal.hostal}`);
+      }
+    });
+    if(alertas.length>0){
+      const msg=alertas.join('\n')+'\n\n¿Es un traslado? Si es así, cancela y usa el tipo "Traslado". Si es un error, cancela y corrige.\n\n¿Continuar igualmente?';
+      if(!confirm(msg))return;
+    }
+  }
+
   personas.forEach(p=>{
     const key=p.nombre.toUpperCase().trim();
     const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
@@ -1313,6 +1333,23 @@ function renderH(){
     const okHostal=!hostalFiltro||h.hostal===hostalFiltro;
     return okNombre&&okHostal;
   });
+
+  // Detectar personas activas en múltiples hostales
+  const activosPorNombre={};
+  S.huespedes.filter(h=>!h.fechaSalida).forEach(h=>{
+    const k=h.nombre.toUpperCase().trim();
+    if(!activosPorNombre[k])activosPorNombre[k]=[];
+    activosPorNombre[k].push(h.hostal);
+  });
+  const duplicados=new Set(Object.keys(activosPorNombre).filter(k=>activosPorNombre[k].length>1));
+  if(duplicados.size>0){
+    const dupMsg=[...duplicados].map(k=>`${k} (${activosPorNombre[k].join(', ')})`).join('<br>');
+    const dupDiv=document.createElement('div');
+    dupDiv.className='msg msg-warn';
+    dupDiv.style.marginBottom='10px';
+    dupDiv.innerHTML=`⚠ <strong>Personas activas en múltiples hostales:</strong><br>${dupMsg}`;
+    a.parentNode.insertBefore(dupDiv,a);
+  }
   if(!filtrados.length){a.innerHTML='<div class="empty"><div class="empty-txt">No se encontró ningún huésped con ese nombre.</div></div>';return;}
   const byH={};filtrados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   document.getElementById('hSub').textContent=`${filtrados.length} huéspedes · ${Object.keys(byH).length} hostales`;
