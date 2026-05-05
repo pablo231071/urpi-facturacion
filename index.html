@@ -669,6 +669,7 @@ function nav(btn){
   if(id==='resumen')renderR();
   if(id==='festivos')renderF();
   if(id==='config')renderConfig();
+  if(id==='cerrar')renderCerrar();
 }
 
 function showMsg(pid,txt,tipo){
@@ -2230,12 +2231,19 @@ async function cerrarQuincena(){
   S.huespedes=continuan;
   S.festivos=[];
 
-  // Cambiar a nueva quincena
+  // Cambiar a nueva quincena EN ESTADO (sin llamar a cargar())
   S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
   document.getElementById('sQ').value=nTipo;
   document.getElementById('sM').value=nMes;
   document.getElementById('sA').value=nAno;
-  await cambiarQ();
+
+  // Actualizar rango de fechas qIni/qFin manualmente
+  const dm2=new Date(nAno,nMes,0).getDate();
+  S.qIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
+  S.qFin=nTipo===1?new Date(nAno,nMes-1,15):new Date(nAno,nMes-1,dm2);
+  document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+
+  // PRIMERO guardar en Supabase, LUEGO actualizar UI
   await guardar();
 
   const msg=`✓ ${continuan.length} huéspedes traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}. Festivos reseteados.`;
