@@ -1228,8 +1228,8 @@ async function confirmar(){
       if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
       else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     } else {
+      // FIN: solo actualizar si existe, nunca crear nuevos
       if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
-      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     }
   });
   window._traslado=null;
