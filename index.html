@@ -905,12 +905,9 @@ function parseTrasladoMasivo(txt){
 }
 
 function esTraslado(txt){
-  // Patrones explícitos de traslado
-  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda|cambiarse del hostal|cambiar.{1,20}hostal|pasa.{1,30}hostal|se cambia.{1,30}hostal|proceder.{1,30}cambiarse/i.test(txt);
-  // También detectar "pasará al Hostal X" o "cambiarse del hostal X al hostal Y"
-  const tienePatronCambio=/(?:pasar[aá]?|cambi[ao]|trasladar[aá]?|mover[aá]?).{1,50}(?:hostal|RF|recurso)/i.test(txt);
+  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda|cambiarse del hostal/i.test(txt);
+  const tienePatronCambio=/pasar.{1,30}hostal|cambi.{1,30}hostal|se cambia.{1,30}hostal/i.test(txt);
   const tieneHostales=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=2;
-  // Un hostal origen y uno destino
   const tieneUnHostal=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=1;
   return (tieneKeyword||tienePatronCambio)&&(tieneHostales||tieneUnHostal);
 }
@@ -946,32 +943,33 @@ function parsTraslado(txt){
   // El destino es el hostal donde van (A / al / hasta)
   let origen=null,destino=null;
   const txtUp=txt.toUpperCase();
-  // Buscar patrón "DE [hostal] a/al [hostal]" y variantes
+  // Buscar patrón "DE [hostal] a/al [hostal]"
   for(const h of Object.keys(HOSTALES)){
     const hUp=h.toUpperCase();
-    // Hostal de destino: aparece después de "a ", "al ", "al hostal", "pasará al", "al RF"
-    const regDest=new RegExp('(?:AL?\\s+(?:(?:HOSTAL|RF)\\s+)?|HACIA\\s+|PASAR[AÁ]?\\s+AL?\\s+(?:(?:HOSTAL|RF)\\s+)?)'+hUp,'i');
+    const regDest=new RegExp('(?:AL?\\s+(?:HOSTAL\\s+)?|HACIA\\s+)'+hUp,'i');
     if(regDest.test(txt))destino=h;
-    // Hostal origen: aparece después de "de ", "desde ", "del hostal", "cambiarse del"
-    const regOri=new RegExp('(?:DE(?:SDE)?(?:L)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:(?:HOSTAL|RF)\\s+)?)'+hUp,'i');
+    const regOri=new RegExp('(?:DE(?:SDE)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:HOSTAL\\s+)?)'+hUp,'i');
     if(regOri.test(txt)&&h!==destino)origen=h;
   }
   
-  // Patrón especial: "cambiarse del hostal X al hostal Y" / "pasará al Hostal Y"
-  const matchCambiarse=txt.match(/cambiarse del (?:hostal )?(.+?) al (?:hostal )?(.+?)(?:
-|$|,|\.)/i);
-  if(matchCambiarse){
+  // Patrón: "cambiarse del hostal X al hostal Y"
+  const txtLow=txt.toLowerCase();
+  const idxCambiarse=txtLow.indexOf('cambiarse del');
+  if(idxCambiarse>=0){
+    const fragmento=txt.slice(idxCambiarse,idxCambiarse+100);
     for(const h of Object.keys(HOSTALES)){
-      if(matchCambiarse[1].toUpperCase().includes(h.toUpperCase()))origen=h;
-      if(matchCambiarse[2].toUpperCase().includes(h.toUpperCase()))destino=h;
+      if(fragmento.toUpperCase().includes(h.toUpperCase())){
+        if(!origen)origen=h;
+        else if(h!==origen)destino=h;
+      }
     }
   }
-  // Patrón: "pasará al Hostal X" sin hostal origen explícito
-  const matchPasara=txt.match(/pasar[aá]? al (?:hostal )?(.+?)(?:
-|$|,|\.|hab)/i);
-  if(matchPasara&&!destino){
+  // Patrón: "pasará al Hostal X"
+  const idxPasara=txtLow.search(/pasar.{0,5} al/);
+  if(idxPasara>=0&&!destino){
+    const fragmento=txt.slice(idxPasara,idxPasara+80);
     for(const h of Object.keys(HOSTALES)){
-      if(matchPasara[1].toUpperCase().includes(h.toUpperCase()))destino=h;
+      if(fragmento.toUpperCase().includes(h.toUpperCase()))destino=h;
     }
   }
 
