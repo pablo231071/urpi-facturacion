@@ -6,27 +6,7 @@
 <title>URPI · Facturación CEAR</title>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, getDocs, writeBatch, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-const firebaseConfig = {
-  apiKey: "AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc",
-  authDomain: "urpi-facturacion.firebaseapp.com",
-  projectId: "urpi-facturacion",
-  storageBucket: "urpi-facturacion.firebasestorage.app",
-  messagingSenderId: "993808083661",
-  appId: "1:993808083661:web:d7d33d5106fa296794d784"
-};
-const fbApp = initializeApp(firebaseConfig);
-const db = getFirestore(fbApp);
-window._fbDb = db;
-window._fbReady = true;
-window._fbCollection = collection;
-window._fbGetDocs = getDocs;
-window._fbWriteBatch = writeBatch;
-window._fbDoc = doc;
-document.addEventListener('DOMContentLoaded', () => { if(window._urpiInit) window._urpiInit(); });
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -352,12 +332,6 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
       <div class="fg"><label>Min iniciación (días)</label><input type="number" id="mMin" value="0" min="0"></div>
       <div class="fg"><label>Snack escolar (días)</label><input type="number" id="mSnack" value="0" min="0"></div>
     </div>
-    <div style="margin-bottom:12px">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--gray)">
-        <input type="checkbox" id="mSinSnack" style="width:auto">
-        <span>Sin snack escolar (forzar 0 aunque sea menor)</span>
-      </label>
-    </div>
     <button class="btn btn-dark" onclick="addManual()">Guardar huésped</button>
   </div>
 </div>
@@ -529,68 +503,84 @@ const HOSTALES={
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
-// Firebase helpers
-function getDb(){return window._fbDb;}
+// Supabase config
+const SUPA_URL='https://oajkayrhpvytfgtcytmt.supabase.co';
+const SUPA_KEY='sb_publishable_VhfKugYf4t5wUWlUjtD3jA_8EsjeZKs';
+let supa=null;
+async function initSupa(){
+  if(supa)return;
+  const {createClient}=supabase;
+  supa=createClient(SUPA_URL,SUPA_KEY);
+}
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
 function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
 
 async function guardar(){
+  await initSupa();
   try{
+    // Guardar config en localStorage (es pequeño y local)
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
+    // Guardar festivos en localStorage por quincena
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
-    const db=getDb();
-    if(!db){actualizarUI();return;}
-    const col=window._fbCollection(db,'huespedes');
-    const snap=await window._fbGetDocs(col);
-    const batch=window._fbWriteBatch(db);
-    snap.forEach(d=>batch.delete(d.ref));
-    await batch.commit();
-    const CHUNK=400;
-    for(let i=0;i<S.huespedes.length;i+=CHUNK){
-      const b2=window._fbWriteBatch(db);
-      S.huespedes.slice(i,i+CHUNK).forEach((h,idx)=>{
-        const ref=window._fbDoc(col,String(h.id));
-        b2.set(ref,{
-          id:String(h.id),nombre:h.nombre,fnac:h.fnac||'',hostal:h.hostal,
-          fecha_entrada:h.fechaEntrada||'',fecha_salida:h.fechaSalida||'',
-          cabeza:!!h.cabeza,picnic:!!h.picnic,
-          min_dias:h.minDias||0,snack_dias:h.snackDias||0,
-          sin_snack:!!h.sinSnack,
-          importado:!!h.importado,orden:i+idx,tipo_manual:h.tipoManual||''
-        });
-      });
-      await b2.commit();
+    // Huespedes en Supabase — sincronizacion completa
+    // 1. Borrar todos los existentes
+    await supa.from('huespedes').delete().neq('id','__never__');
+    // 2. Insertar los actuales si hay
+    if(S.huespedes.length>0){
+      const rows=S.huespedes.map((h,idx)=>({
+        id:String(h.id),
+        nombre:h.nombre,
+        fnac:h.fnac||'',
+        hostal:h.hostal,
+        fecha_entrada:h.fechaEntrada||'',
+        fecha_salida:h.fechaSalida||'',
+        cabeza:!!h.cabeza,
+        picnic:!!h.picnic,
+        min_dias:h.minDias||0,
+        snack_dias:h.snackDias||0,
+        importado:!!h.importado,
+        orden:idx,
+        tipo_manual:h.tipoManual||''
+      }));
+      await supa.from('huespedes').insert(rows);
     }
   }catch(e){console.error('Error guardando:',e);}
   actualizarUI();
 }
 
 async function cargar(){
+  await initSupa();
   try{
-    const db=getDb();
-    if(db){
-      const snap=await window._fbGetDocs(window._fbCollection(db,'huespedes'));
-      const data=[];
-      snap.forEach(d=>data.push(d.data()));
+    // Cargar huespedes desde Supabase
+    const{data,error}=await supa.from('huespedes').select('*').order('orden',{ascending:true,nullsFirst:true});
+    if(!error&&data){
       S.huespedes=data.map(h=>({
-        id:h.id,nombre:h.nombre,fnac:h.fnac||'',hostal:h.hostal,
-        fechaEntrada:h.fecha_entrada||'',fechaSalida:h.fecha_salida||'',
-        cabeza:h.cabeza===true,picnic:h.picnic===true,
-        minDias:parseInt(h.min_dias)||0,snackDias:parseInt(h.snack_dias)||0,
-        sinSnack:h.sin_snack===true,
-        importado:h.importado===true,tipoManual:h.tipo_manual||''
-      })).sort((a,b)=>(a.orden||0)-(b.orden||0));
+        id:h.id,
+        nombre:h.nombre,
+        fnac:h.fnac||'',
+        hostal:h.hostal,
+        fechaEntrada:h.fecha_entrada||'',
+        fechaSalida:h.fecha_salida||'',
+        cabeza:h.cabeza,
+        picnic:h.picnic,
+        minDias:h.min_dias||0,
+        snackDias:h.snack_dias||0,
+        importado:h.importado,
+        tipoManual:h.tipo_manual||''
+      }));
     }
-  }catch(e){console.error('Error cargando:',e);S.huespedes=[];}
-  const f=localStorage.getItem(festKey());
-  S.festivos=f?JSON.parse(f):[];
-  const cfg=localStorage.getItem('urpi_config');
-  if(cfg){const c=JSON.parse(cfg);S.config=c;
-    const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
-    const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 235';
-  }
+    // Festivos desde localStorage por quincena
+    const f=localStorage.getItem(festKey());
+    S.festivos=f?JSON.parse(f):[];
+    // Config
+    const cfg=localStorage.getItem('urpi_config');
+    if(cfg){const c=JSON.parse(cfg);S.config=c;
+      const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
+      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 ';
+    }
+  }catch(e){console.error('Error cargando:',e);S.huespedes=[];S.festivos=[];}
   actualizarUI();
 }
 function actualizarUI(){
@@ -915,9 +905,14 @@ function parseTrasladoMasivo(txt){
 }
 
 function esTraslado(txt){
-  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda/i.test(txt);
+  // Patrones explícitos de traslado
+  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda|cambiarse del hostal|cambiar.{1,20}hostal|pasa.{1,30}hostal|se cambia.{1,30}hostal|proceder.{1,30}cambiarse/i.test(txt);
+  // También detectar "pasará al Hostal X" o "cambiarse del hostal X al hostal Y"
+  const tienePatronCambio=/(?:pasar[aá]?|cambi[ao]|trasladar[aá]?|mover[aá]?).{1,50}(?:hostal|RF|recurso)/i.test(txt);
   const tieneHostales=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=2;
-  return tieneKeyword&&tieneHostales;
+  // Un hostal origen y uno destino
+  const tieneUnHostal=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=1;
+  return (tieneKeyword||tienePatronCambio)&&(tieneHostales||tieneUnHostal);
 }
 
 function parsTraslado(txt){
@@ -951,15 +946,33 @@ function parsTraslado(txt){
   // El destino es el hostal donde van (A / al / hasta)
   let origen=null,destino=null;
   const txtUp=txt.toUpperCase();
-  // Buscar patrón "DE [hostal] a/al [hostal]"
+  // Buscar patrón "DE [hostal] a/al [hostal]" y variantes
   for(const h of Object.keys(HOSTALES)){
     const hUp=h.toUpperCase();
-    // Hostal de destino: aparece después de "a ", "al ", "al hostal"
-    const regDest=new RegExp('(?:AL?\\s+(?:HOSTAL\\s+)?|HACIA\\s+)'+hUp,'i');
+    // Hostal de destino: aparece después de "a ", "al ", "al hostal", "pasará al", "al RF"
+    const regDest=new RegExp('(?:AL?\\s+(?:(?:HOSTAL|RF)\\s+)?|HACIA\\s+|PASAR[AÁ]?\\s+AL?\\s+(?:(?:HOSTAL|RF)\\s+)?)'+hUp,'i');
     if(regDest.test(txt))destino=h;
-    // Hostal origen: aparece después de "de ", "desde ", o antes de "CAMBIO A"
-    const regOri=new RegExp('(?:DE(?:SDE)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:HOSTAL\\s+)?)'+hUp,'i');
+    // Hostal origen: aparece después de "de ", "desde ", "del hostal", "cambiarse del"
+    const regOri=new RegExp('(?:DE(?:SDE)?(?:L)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:(?:HOSTAL|RF)\\s+)?)'+hUp,'i');
     if(regOri.test(txt)&&h!==destino)origen=h;
+  }
+  
+  // Patrón especial: "cambiarse del hostal X al hostal Y" / "pasará al Hostal Y"
+  const matchCambiarse=txt.match(/cambiarse del (?:hostal )?(.+?) al (?:hostal )?(.+?)(?:
+|$|,|\.)/i);
+  if(matchCambiarse){
+    for(const h of Object.keys(HOSTALES)){
+      if(matchCambiarse[1].toUpperCase().includes(h.toUpperCase()))origen=h;
+      if(matchCambiarse[2].toUpperCase().includes(h.toUpperCase()))destino=h;
+    }
+  }
+  // Patrón: "pasará al Hostal X" sin hostal origen explícito
+  const matchPasara=txt.match(/pasar[aá]? al (?:hostal )?(.+?)(?:
+|$|,|\.|hab)/i);
+  if(matchPasara&&!destino){
+    for(const h of Object.keys(HOSTALES)){
+      if(matchPasara[1].toUpperCase().includes(h.toUpperCase()))destino=h;
+    }
   }
 
   // Mejorar detección con patrón "HOSTAL X ... CAMBIO A ... HOSTAL Y"
@@ -1238,8 +1251,8 @@ async function confirmar(){
       if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
       else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     } else {
+      // FIN: solo actualizar si existe, nunca crear nuevos
       if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
-      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     }
   });
   window._traslado=null;
@@ -1263,7 +1276,6 @@ async function addManual(){
     picnic:document.getElementById('mPicnic').value==='si',
     minDias:parseInt(document.getElementById('mMin').value)||0,
     snackDias:parseInt(document.getElementById('mSnack').value)||0,
-    sinSnack:document.getElementById('mSinSnack').checked,
     fechaEntrada:fechaEnt,
     fechaSalida:fechaSal
   };
@@ -1323,10 +1335,9 @@ function calcImp(h){
   const minI=minDiasCalc*pMin;
   // Recalcular snack automáticamente para menores usando festivos actuales
   let snackDias=h.snackDias||0;
-  if(menor&&!bebe&&ini&&fin&&!h.sinSnack){
+  if(menor&&!bebe&&ini&&fin){
     snackDias=calcLectivos(ini,fin);
   }
-  if(h.sinSnack)snackDias=0;
   const snackI=snackDias*pSnack;
   const picnic=0;
   const base=Math.round((aloj+minI+snackI)*100)/100;
@@ -1391,7 +1402,6 @@ function renderH(){
             ${h.picnic?'<span class="badge b-picnic">Picnic</span>':''}
             ${h.snackDias?`<span class="badge b-snack">Snack ×${h.snackDias}d</span>`:''}
             ${h.minDias?`<span class="badge b-min">Min ×${h.minDias}d</span>`:''}
-            ${h.sinSnack?'<span class="badge" style="background:#f3f4f6;color:#6b7280">Sin snack</span>':''}
           </div>
         </div>`;
       }).join('')}</div>
@@ -1414,7 +1424,6 @@ async function editH(id){
   document.getElementById('mPicnic').value=h.picnic?'si':'no';
   document.getElementById('mMin').value=h.minDias||0;
   document.getElementById('mSnack').value=h.snackDias||0;
-  document.getElementById('mSinSnack').checked=h.sinSnack||false;
   // Guardar el ID que se está editando para actualizarlo al guardar
   window._editandoId=id;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -1848,7 +1857,7 @@ async function generarExcel(){
       const minDiasCalc=h.minDias||0;
       const minI=minDiasCalc*pMin;
       // Recalcular snack con festivos actuales para menores
-      const snackDiasCalc=h.sinSnack?0:(menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0));
+      const snackDiasCalc=menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0);
       const snackI=snackDiasCalc*pSnack;
       const base=Math.round((aloj+minI+snackI)*100)/100;
       const igic=Math.round(base*igicPct*100)/100;
@@ -1925,6 +1934,8 @@ async function limpiarQuincena(){
   await guardar();renderH();renderF();
   alert('✓ Datos eliminados');
 }
+function storKey(){return `${S.qTipo}_${S.qMes}_${S.qAno}`;}
+function cntNav(){document.getElementById("nCnt").textContent=S.huespedes.length;}
 function exportarJSON(){
   const blob=new Blob([JSON.stringify({quincena:{tipo:S.qTipo,mes:S.qMes,ano:S.qAno},huespedes:S.huespedes,festivos:S.festivos},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2265,7 +2276,7 @@ async function cerrarQuincena(){
   renderCerrar();
 }
 
-// AUTO-DETECTAR MES ACTUAL y esperar Firebase
+// AUTO-DETECTAR MES ACTUAL
 (function(){
   const now=new Date();
   const mes=now.getMonth()+1;
@@ -2276,8 +2287,7 @@ async function cerrarQuincena(){
   document.getElementById('sQ').value=q;
 })();
 
-window._urpiInit=function(){cambiarQ().catch(console.error);};
-if(window._fbReady){window._urpiInit();}
+cambiarQ().catch(console.error);
 </script>
 </body>
 </html>
