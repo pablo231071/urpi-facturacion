@@ -6,7 +6,7 @@
 <title>URPI · Facturación CEAR</title>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Firebase via REST API directa -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -503,82 +503,94 @@ const HOSTALES={
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
-// Supabase config
-const SUPA_URL='https://oajkayrhpvytfgtcytmt.supabase.co';
-const SUPA_KEY='sb_publishable_VhfKugYf4t5wUWlUjtD3jA_8EsjeZKs';
-let supa=null;
-async function initSupa(){
-  if(supa)return;
-  const {createClient}=supabase;
-  supa=createClient(SUPA_URL,SUPA_KEY);
-}
+// Firebase config (via window globals inyectados por módulo ES)
+const PROJECT='urpi-facturacion';
+const API=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
+const FB_KEY='AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc';
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
 function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
 
 async function guardar(){
-  await initSupa();
   try{
-    // Guardar config en localStorage (es pequeño y local)
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
-    // Guardar festivos en localStorage por quincena
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
-    // Huespedes en Supabase — sincronizacion completa
-    // 1. Borrar todos los existentes
-    await supa.from('huespedes').delete().neq('id','__never__');
-    // 2. Insertar los actuales si hay
-    if(S.huespedes.length>0){
-      const rows=S.huespedes.map((h,idx)=>({
-        id:String(h.id),
-        nombre:h.nombre,
-        fnac:h.fnac||'',
-        hostal:h.hostal,
-        fecha_entrada:h.fechaEntrada||'',
-        fecha_salida:h.fechaSalida||'',
-        cabeza:!!h.cabeza,
-        picnic:!!h.picnic,
-        min_dias:h.minDias||0,
-        snack_dias:h.snackDias||0,
-        importado:!!h.importado,
-        orden:idx,
-        tipo_manual:h.tipoManual||''
-      }));
-      await supa.from('huespedes').insert(rows);
+    // Borrar todos y reinsertar — igual que Supabase pero con REST API Firestore
+    // 1. Leer IDs existentes
+    const getRes=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
+    const getData=await getRes.json();
+    const docsExist=getData.documents||[];
+    // 2. Borrar en lotes
+    for(const d of docsExist){
+      const docId=d.name.split('/').pop();
+      await fetch(`${API}/huespedes/${docId}?key=${FB_KEY}`,{method:'DELETE'});
+    }
+    // 3. Insertar los actuales
+    for(let idx=0;idx<S.huespedes.length;idx++){
+      const h=S.huespedes[idx];
+      const id=String(h.id);
+      await fetch(`${API}/huespedes?documentId=${encodeURIComponent(id)}&key=${FB_KEY}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({fields:{
+          id:{stringValue:id},
+          nombre:{stringValue:h.nombre||''},
+          fnac:{stringValue:h.fnac||''},
+          hostal:{stringValue:h.hostal||''},
+          fecha_entrada:{stringValue:h.fechaEntrada||''},
+          fecha_salida:{stringValue:h.fechaSalida||''},
+          cabeza:{booleanValue:!!h.cabeza},
+          picnic:{booleanValue:!!h.picnic},
+          min_dias:{integerValue:h.minDias||0},
+          snack_dias:{integerValue:h.snackDias||0},
+          importado:{booleanValue:!!h.importado},
+          orden:{integerValue:idx},
+          tipo_manual:{stringValue:h.tipoManual||''},
+          sin_snack:{booleanValue:!!h.sinSnack}
+        }})
+      });
     }
   }catch(e){console.error('Error guardando:',e);}
   actualizarUI();
 }
 
 async function cargar(){
-  await initSupa();
   try{
-    // Cargar huespedes desde Supabase
-    const{data,error}=await supa.from('huespedes').select('*').order('orden',{ascending:true,nullsFirst:true});
-    if(!error&&data){
-      S.huespedes=data.map(h=>({
-        id:h.id,
-        nombre:h.nombre,
-        fnac:h.fnac||'',
-        hostal:h.hostal,
-        fechaEntrada:h.fecha_entrada||'',
-        fechaSalida:h.fecha_salida||'',
-        cabeza:h.cabeza,
-        picnic:h.picnic,
-        minDias:h.min_dias||0,
-        snackDias:h.snack_dias||0,
-        importado:h.importado,
-        tipoManual:h.tipo_manual||''
-      }));
-    }
-    // Festivos desde localStorage por quincena
-    const f=localStorage.getItem(festKey());
-    S.festivos=f?JSON.parse(f):[];
-    // Config
+    const res=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
+    const data=await res.json();
+    const docs=data.documents||[];
+    // Ordenar por campo orden
+    docs.sort((a,b)=>{
+      const oa=a.fields?.orden?.integerValue||0;
+      const ob=b.fields?.orden?.integerValue||0;
+      return parseInt(oa)-parseInt(ob);
+    });
+    S.huespedes=docs.map(d=>{
+      const f=d.fields||{};
+      return{
+        id:f.id?.stringValue||d.name.split('/').pop(),
+        nombre:f.nombre?.stringValue||'',
+        fnac:f.fnac?.stringValue||'',
+        hostal:f.hostal?.stringValue||'',
+        fechaEntrada:f.fecha_entrada?.stringValue||'',
+        fechaSalida:f.fecha_salida?.stringValue||'',
+        cabeza:f.cabeza?.booleanValue||false,
+        picnic:f.picnic?.booleanValue||false,
+        minDias:parseInt(f.min_dias?.integerValue||0),
+        snackDias:parseInt(f.snack_dias?.integerValue||0),
+        importado:f.importado?.booleanValue||false,
+        tipoManual:f.tipo_manual?.stringValue||'',
+        sinSnack:f.sin_snack?.booleanValue||false,
+        orden:parseInt(f.orden?.integerValue||0)
+      };
+    });
+    const fv=localStorage.getItem(festKey());
+    S.festivos=fv?JSON.parse(fv):[];
     const cfg=localStorage.getItem('urpi_config');
     if(cfg){const c=JSON.parse(cfg);S.config=c;
       const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
-      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 ';
+      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 235';
     }
   }catch(e){console.error('Error cargando:',e);S.huespedes=[];S.festivos=[];}
   actualizarUI();
@@ -669,7 +681,6 @@ function nav(btn){
   if(id==='resumen')renderR();
   if(id==='festivos')renderF();
   if(id==='config')renderConfig();
-  if(id==='cerrar')renderCerrar();
 }
 
 function showMsg(pid,txt,tipo){
@@ -905,11 +916,9 @@ function parseTrasladoMasivo(txt){
 }
 
 function esTraslado(txt){
-  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda|cambiarse del hostal/i.test(txt);
-  const tienePatronCambio=/pasar.{1,30}hostal|cambi.{1,30}hostal|se cambia.{1,30}hostal/i.test(txt);
+  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda/i.test(txt);
   const tieneHostales=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=2;
-  const tieneUnHostal=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=1;
-  return (tieneKeyword||tienePatronCambio)&&(tieneHostales||tieneUnHostal);
+  return tieneKeyword&&tieneHostales;
 }
 
 function parsTraslado(txt){
@@ -946,31 +955,12 @@ function parsTraslado(txt){
   // Buscar patrón "DE [hostal] a/al [hostal]"
   for(const h of Object.keys(HOSTALES)){
     const hUp=h.toUpperCase();
+    // Hostal de destino: aparece después de "a ", "al ", "al hostal"
     const regDest=new RegExp('(?:AL?\\s+(?:HOSTAL\\s+)?|HACIA\\s+)'+hUp,'i');
     if(regDest.test(txt))destino=h;
+    // Hostal origen: aparece después de "de ", "desde ", o antes de "CAMBIO A"
     const regOri=new RegExp('(?:DE(?:SDE)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:HOSTAL\\s+)?)'+hUp,'i');
     if(regOri.test(txt)&&h!==destino)origen=h;
-  }
-  
-  // Patrón: "cambiarse del hostal X al hostal Y"
-  const txtLow=txt.toLowerCase();
-  const idxCambiarse=txtLow.indexOf('cambiarse del');
-  if(idxCambiarse>=0){
-    const fragmento=txt.slice(idxCambiarse,idxCambiarse+100);
-    for(const h of Object.keys(HOSTALES)){
-      if(fragmento.toUpperCase().includes(h.toUpperCase())){
-        if(!origen)origen=h;
-        else if(h!==origen)destino=h;
-      }
-    }
-  }
-  // Patrón: "pasará al Hostal X"
-  const idxPasara=txtLow.search(/pasar.{0,5} al/);
-  if(idxPasara>=0&&!destino){
-    const fragmento=txt.slice(idxPasara,idxPasara+80);
-    for(const h of Object.keys(HOSTALES)){
-      if(fragmento.toUpperCase().includes(h.toUpperCase()))destino=h;
-    }
   }
 
   // Mejorar detección con patrón "HOSTAL X ... CAMBIO A ... HOSTAL Y"
@@ -1249,8 +1239,8 @@ async function confirmar(){
       if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
       else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     } else {
-      // FIN: solo actualizar si existe, nunca crear nuevos
       if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
     }
   });
   window._traslado=null;
@@ -1932,8 +1922,6 @@ async function limpiarQuincena(){
   await guardar();renderH();renderF();
   alert('✓ Datos eliminados');
 }
-function storKey(){return `${S.qTipo}_${S.qMes}_${S.qAno}`;}
-function cntNav(){document.getElementById("nCnt").textContent=S.huespedes.length;}
 function exportarJSON(){
   const blob=new Blob([JSON.stringify({quincena:{tipo:S.qTipo,mes:S.qMes,ano:S.qAno},huespedes:S.huespedes,festivos:S.festivos},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2254,19 +2242,12 @@ async function cerrarQuincena(){
   S.huespedes=continuan;
   S.festivos=[];
 
-  // Cambiar a nueva quincena EN ESTADO (sin llamar a cargar())
+  // Cambiar a nueva quincena
   S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
   document.getElementById('sQ').value=nTipo;
   document.getElementById('sM').value=nMes;
   document.getElementById('sA').value=nAno;
-
-  // Actualizar rango de fechas qIni/qFin manualmente
-  const dm2=new Date(nAno,nMes,0).getDate();
-  S.qIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
-  S.qFin=nTipo===1?new Date(nAno,nMes-1,15):new Date(nAno,nMes-1,dm2);
-  document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
-
-  // PRIMERO guardar en Supabase, LUEGO actualizar UI
+  await cambiarQ();
   await guardar();
 
   const msg=`✓ ${continuan.length} huéspedes traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}. Festivos reseteados.`;
@@ -2285,7 +2266,13 @@ async function cerrarQuincena(){
   document.getElementById('sQ').value=q;
 })();
 
-cambiarQ().catch(console.error);
+// Iniciar — Firebase REST API no necesita esperar módulo
+window._urpiInit=function(){cambiarQ().catch(console.error);};
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',()=>window._urpiInit());
+}else{
+  window._urpiInit();
+}
 </script>
 </body>
 </html>
