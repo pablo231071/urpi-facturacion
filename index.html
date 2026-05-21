@@ -1,620 +1,2286 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pedidos URPI</title>
-  <meta name="description" content="Formulario de pedidos semanales URPI">
-  <meta name="theme-color" content="#1D9E75">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Pedidos URPI">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
-  <link rel="icon" href="/icons/icon-192.png">
-  <style>
-    :root {
-      --green: #1D9E75;
-      --green-dark: #0F6E56;
-      --green-light: #E1F5EE;
-      --amber: #EF9F27;
-      --blue: #378ADD;
-      --text: #1a1a1a;
-      --text-muted: #666;
-      --border: rgba(0,0,0,0.12);
-      --bg: #f5f5f3;
-      --card: #ffffff;
-      --radius: 12px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --text: #f0f0ee;
-        --text-muted: #999;
-        --border: rgba(255,255,255,0.12);
-        --bg: #1a1a18;
-        --card: #242422;
-        --green-light: #0a3328;
-      }
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding-bottom: 2rem;
-    }
-    .topbar {
-      background: var(--green);
-      color: white;
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    .topbar-icon { font-size: 22px; }
-    .topbar h1 { font-size: 17px; font-weight: 600; flex: 1; }
-    .topbar small { font-size: 12px; opacity: 0.8; }
-    .container { max-width: 520px; margin: 0 auto; padding: 16px; }
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      border: 0.5px solid var(--border);
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      padding: 16px;
-    }
-    .meta-grid .full { grid-column: 1 / -1; }
-    label {
-      font-size: 11px;
-      color: var(--text-muted);
-      display: block;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    select, input[type="text"], input[type="date"] {
-      width: 100%;
-      padding: 9px 10px;
-      font-size: 15px;
-      border: 0.5px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      color: var(--text);
-      -webkit-appearance: none;
-    }
-    select:focus, input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 13px 16px;
-      cursor: pointer;
-      background: var(--card);
-      border-bottom: 0.5px solid var(--border);
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .section-header .dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .section-header span { flex: 1; font-size: 15px; font-weight: 500; }
-    .badge {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      background: var(--green-light);
-      color: var(--green-dark);
-      font-weight: 600;
-    }
-    .chevron {
-      font-size: 18px;
-      color: var(--text-muted);
-      transition: transform 0.2s;
-    }
-    .chevron.open { transform: rotate(180deg); }
-    .section-body { display: none; padding: 0 16px; }
-    .section-body.open { display: block; }
-    .item-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 0;
-      border-bottom: 0.5px solid var(--border);
-    }
-    .item-row:last-child { border-bottom: none; }
-    .item-info { flex: 1; }
-    .item-name { font-size: 14px; color: var(--text); }
-    .item-unit { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
-    .qty-wrap { display: flex; align-items: center; gap: 6px; }
-    .qty-btn {
-      width: 30px; height: 30px;
-      border: 0.5px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      color: var(--text);
-      font-size: 18px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      -webkit-tap-highlight-color: transparent;
-      flex-shrink: 0;
-    }
-    .qty-btn:active { background: var(--green-light); }
-    .qty-input {
-      width: 42px;
-      text-align: center;
-      border: 0.5px solid var(--border);
-      border-radius: 8px;
-      padding: 5px 2px;
-      font-size: 14px;
-      background: var(--bg);
-      color: var(--text);
-    }
-    .qty-input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
-    .notes-wrap { padding: 16px; }
-    textarea {
-      width: 100%;
-      padding: 9px 10px;
-      font-size: 14px;
-      border: 0.5px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      color: var(--text);
-      resize: vertical;
-      min-height: 70px;
-      font-family: inherit;
-    }
-    textarea:focus { outline: 2px solid var(--green); outline-offset: 1px; }
-    .btn-wa {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: var(--radius);
-      background: #25D366;
-      color: white;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .btn-wa:active { background: #1da851; transform: scale(0.98); }
-    .btn-copy {
-      width: 100%;
-      padding: 12px;
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--card);
-      color: var(--text);
-      font-size: 15px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .btn-copy:active { background: var(--green-light); }
-    .preview-card {
-      padding: 14px 16px;
-      background: var(--bg);
-      border-radius: var(--radius);
-      border: 0.5px solid var(--border);
-      font-family: monospace;
-      font-size: 13px;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      color: var(--text);
-      margin-bottom: 10px;
-      display: none;
-    }
-    .preview-card.open { display: block; }
-    .install-banner {
-      display: none;
-      background: var(--green-light);
-      border: 0.5px solid var(--green);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      margin-bottom: 12px;
-      font-size: 13px;
-      color: var(--green-dark);
-      line-height: 1.5;
-    }
-    .install-banner strong { display: block; margin-bottom: 4px; font-size: 14px; }
-    .install-banner button {
-      margin-top: 8px;
-      padding: 6px 14px;
-      border: 0.5px solid var(--green);
-      border-radius: 8px;
-      background: var(--green);
-      color: white;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .section-desayuno-dot { background: var(--amber); }
-    .section-picnic-dot { background: var(--blue); }
-    .section-limpieza-dot { background: var(--green); }
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%) translateY(80px);
-      background: #1a1a1a;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 20px;
-      font-size: 14px;
-      transition: transform 0.3s;
-      z-index: 100;
-      white-space: nowrap;
-    }
-    .toast.show { transform: translateX(-50%) translateY(0); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>URPI · Facturación CEAR</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- Firebase via REST API directa -->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0f1c2e;--navy2:#1a2d45;--orange:#e8601a;--orange2:#ff7440;
+  --cream:#f7f4ef;--cream2:#ede9e1;--white:#ffffff;
+  --gray:#6b7a8d;--gray2:#c2cad4;--gray3:#e8ecf0;
+  --green:#1e6b3a;--red:#b91c1c;--blue:#1d4ed8;
+  --shadow:0 1px 4px rgba(0,0,0,0.08);--r:8px;
+}
+body{font-family:'Inter',sans-serif;font-size:13px;background:var(--cream);color:var(--navy);min-height:100vh}
+a{color:var(--orange)}
+
+/* LAYOUT */
+.wrap{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* SIDEBAR */
+.sidebar{background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.logo-txt{font-size:17px;font-weight:600;letter-spacing:-0.3px}
+.logo-txt span{color:var(--orange)}
+.logo-sub{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.q-panel{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.q-panel label{font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:5px}
+.q-panel select{width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:5px 8px;border-radius:var(--r);font-size:11px;font-family:'Inter',sans-serif;margin-bottom:4px;cursor:pointer}
+.q-panel select option{background:var(--navy2);color:#fff}
+.q-range{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--orange2);margin-top:4px}
+.nav-section{padding:10px 0 4px}
+.nav-label{font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;padding:6px 16px 3px}
+.nav-btn{display:flex;align-items:center;gap:9px;width:100%;padding:9px 16px;border:none;background:none;color:rgba(255,255,255,0.6);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;text-align:left;transition:all 0.12s;border-left:2px solid transparent}
+.nav-btn:hover{background:rgba(255,255,255,0.07);color:#fff}
+.nav-btn.active{background:rgba(232,96,26,0.15);color:#fff;border-left-color:var(--orange);font-weight:500}
+.nav-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.nav-cnt{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;background:rgba(255,255,255,0.1);padding:1px 6px;border-radius:10px}
+.sidebar-footer{margin-top:auto;padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);font-size:10px;color:rgba(255,255,255,0.25);font-family:'JetBrains Mono',monospace}
+
+/* MAIN */
+.main{padding:24px;max-width:960px}
+.page{display:none}.page.on{display:block}
+.page-hdr{margin-bottom:20px}
+.page-title{font-size:20px;font-weight:600;letter-spacing:-0.3px;margin-bottom:3px}
+.page-sub{font-size:12px;color:var(--gray)}
+
+/* CARDS */
+.card{background:var(--white);border:1px solid var(--gray3);border-radius:var(--r);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card-title{font-size:11px;font-weight:500;color:var(--gray);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:12px}
+
+/* FORMS */
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label,.flabel{font-size:11px;color:var(--gray);font-weight:500}
+input[type=text],input[type=date],input[type=number],select,textarea{
+  width:100%;padding:7px 10px;border:1px solid var(--gray3);border-radius:var(--r);
+  font-family:'Inter',sans-serif;font-size:12px;color:var(--navy);background:var(--white);
+  transition:border-color 0.12s
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+
+/* BUTTONS */
+.btn{padding:7px 14px;border-radius:var(--r);font-size:12px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;border:1px solid var(--gray3);background:var(--white);color:var(--navy);transition:all 0.12s}
+.btn:hover{background:var(--cream);border-color:var(--gray2)}
+.btn-primary{background:var(--orange);color:#fff;border-color:var(--orange)}
+.btn-primary:hover{background:var(--orange2);border-color:var(--orange2)}
+.btn-dark{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-dark:hover{background:var(--navy2)}
+.btn-danger{color:var(--red);border-color:#fecaca}
+.btn-danger:hover{background:#fef2f2}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-row{display:flex;gap:8px;margin-top:12px}
+.btn-row.right{justify-content:flex-end}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500}
+.b-adulto{background:#dbeafe;color:#1e40af}
+.b-menor{background:#fef3c7;color:#92400e}
+.b-bebe{background:#d1fae5;color:#065f46}
+.b-cabeza{background:var(--navy);color:#fff}
+.b-picnic{background:#fee2e2;color:#991b1b}
+.b-snack{background:#ede9fe;color:#4c1d95}
+.b-min{background:#f0fdf4;color:#14532d}
+
+/* MSGS */
+.msg{padding:9px 13px;border-radius:var(--r);font-size:12px;margin-bottom:12px;border:1px solid transparent}
+.msg-ok{background:#f0fdf4;color:var(--green);border-color:#bbf7d0}
+.msg-err{background:#fef2f2;color:var(--red);border-color:#fecaca}
+.msg-info{background:#eff6ff;color:var(--blue);border-color:#bfdbfe}
+.msg-warn{background:#fffbeb;color:#92400e;border-color:#fde68a}
+
+/* DETECT BOX */
+.detect-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--r);padding:10px 13px;margin-bottom:12px;font-size:12px;color:var(--blue)}
+
+/* PERSONA PREVIEW */
+.pprev{border:1px solid var(--gray3);border-radius:var(--r);padding:12px;margin-bottom:8px;background:var(--cream)}
+.pprev-top{display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end}
+.pprev-ext{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--gray)}
+.pprev-ext label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.pprev-ext input[type=checkbox]{width:auto;cursor:pointer}
+.pprev-ext input[type=number]{width:54px;padding:3px 6px;font-size:11px}
+
+/* HUESPED ROWS */
+.hrow{border:1px solid var(--gray3);border-radius:var(--r);padding:11px 13px;margin-bottom:7px;background:var(--white);transition:border-color 0.12s}
+.hrow:hover{border-color:var(--gray2)}
+.hrow.cab{border-left:3px solid var(--navy);border-radius:0 var(--r) var(--r) 0}
+.hrow.men{border-left:3px solid #d97706;border-radius:0 var(--r) var(--r) 0}
+.hrow.beb{border-left:3px solid #059669;border-radius:0 var(--r) var(--r) 0}
+.hrow-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.hrow-name{font-weight:500;font-size:12px}
+.hrow-meta{font-size:10px;color:var(--gray);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.hrow-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.hrow-acts{display:flex;gap:5px;flex-shrink:0}
+
+/* HOSTAL SECTION */
+.hsect{margin-bottom:16px}
+.hhead{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--navy);color:#fff;border-radius:var(--r) var(--r) 0 0;font-size:12px;font-weight:500}
+.htotal{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--orange2)}
+.hbody{border:1px solid var(--gray3);border-top:none;border-radius:0 0 var(--r) var(--r);overflow:hidden;padding:8px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat{background:var(--white);border:1px solid var(--gray3);border-radius:var(--r);padding:12px;box-shadow:var(--shadow)}
+.stat-v{font-size:24px;font-weight:600;letter-spacing:-0.5px;line-height:1}
+.stat-l{font-size:10px;color:var(--gray);margin-top:4px;font-weight:500}
+.stat.accent{background:var(--navy);border-color:var(--navy)}
+.stat.accent .stat-v{color:var(--orange2)}
+.stat.accent .stat-l{color:rgba(255,255,255,0.4)}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray3);color:var(--gray);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap}
+.tbl td{padding:6px 8px;border-bottom:1px solid var(--gray3);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--cream)}
+.tbl .mono{font-family:'JetBrains Mono',monospace;font-size:10px}
+.tbl .right{text-align:right}
+.tbl .bold{font-weight:500}
+.tbl .tot-row td{background:var(--navy);color:#fff;font-weight:500}
+.tbl .tot-row .mono{color:var(--orange2)}
+.tbl-wrap{overflow-x:auto}
+
+/* FESTIVOS */
+.festivos-wrap{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:8px;background:var(--cream);border-radius:var(--r);border:1px solid var(--gray3);margin-bottom:10px}
+.fpill{display:inline-flex;align-items:center;gap:6px;background:var(--white);border:1px solid var(--gray3);border-radius:20px;padding:4px 10px;font-size:11px;font-family:'JetBrains Mono',monospace}
+.fpill button{background:none;border:none;cursor:pointer;color:var(--gray);font-size:14px;line-height:1;padding:0 1px}
+.fpill button:hover{color:var(--red)}
+
+/* EMPTY */
+.empty{text-align:center;padding:36px 20px;color:var(--gray)}
+.empty-icon{font-size:28px;margin-bottom:8px}
+.empty-txt{font-size:12px}
+
+/* TIP */
+.tip{font-size:11px;color:var(--gray);background:var(--cream);padding:9px 12px;border-radius:var(--r);border:1px solid var(--gray3);margin-top:10px}
+
+/* DIVIDER */
+.div{height:1px;background:var(--gray3);margin:14px 0}
+
+/* GEN RESULT */
+.gen-fact-row{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--gray3);font-size:12px}
+.gen-fact-row:last-child{border-bottom:none}
+.gen-total{display:flex;justify-content:space-between;padding:10px 12px;background:var(--navy);color:#fff;border-radius:0 0 var(--r) var(--r);font-weight:500;font-size:12px}
+.gen-total span:last-child{font-family:'JetBrains Mono',monospace;color:var(--orange2)}
+</style>
 </head>
 <body>
 
-<div class="topbar">
-  <span class="topbar-icon">🏠</span>
-  <h1>Pedidos URPI</h1>
-  <small id="semana-label"></small>
+<div class="wrap">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-txt">URPI <span>·</span> CEAR</div>
+    <div class="logo-sub">Sistema de facturación</div>
+  </div>
+
+  <div class="q-panel">
+    <label>Quincena activa</label>
+    <select id="sQ" onchange="cambiarQ()">
+      <option value="1">1ª quincena (1-15)</option>
+      <option value="2" selected>2ª quincena (16-fin)</option>
+    </select>
+    <select id="sM" onchange="cambiarQ()">
+      <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+      <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+      <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+      <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+    </select>
+    <select id="sA" onchange="cambiarQ()">
+      <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+    </select>
+    <div class="q-range" id="qRange">—</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Entrada de datos</div>
+    <button class="nav-btn active" data-page="correos" onclick="nav(this)">
+      <span class="nav-icon">✉</span> Correos CEAR
+    </button>
+    <button class="nav-btn" data-page="manual" onclick="nav(this)">
+      <span class="nav-icon">+</span> Entrada manual
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Gestión</div>
+    <button class="nav-btn" data-page="huespedes" onclick="nav(this)">
+      <span class="nav-icon">◉</span> Huéspedes
+      <span class="nav-cnt" id="nCnt">0</span>
+    </button>
+    <button class="nav-btn" data-page="festivos" onclick="nav(this)">
+      <span class="nav-icon">◈</span> Festivos
+      <span class="nav-cnt" id="fCnt">0</span>
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Facturación</div>
+    <button class="nav-btn" data-page="resumen" onclick="nav(this)">
+      <span class="nav-icon">≡</span> Resumen
+    </button>
+    <button class="nav-btn" data-page="generar" onclick="nav(this)">
+      <span class="nav-icon">↓</span> Generar Excel
+    </button>
+    <button class="nav-btn" data-page="cerrar" onclick="nav(this)">
+      <span class="nav-icon">→</span> Cerrar quincena
+    </button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Sistema</div>
+    <button class="nav-btn" data-page="importar" onclick="nav(this)">
+      <span class="nav-icon">↑</span> Importar facturas
+    </button>
+    <button class="nav-btn" data-page="config" onclick="nav(this)">
+      <span class="nav-icon">⚙</span> Configuración
+    </button>
+  </div>
+
+  <div class="sidebar-footer" id="sfooter">—</div>
 </div>
 
-<div class="container">
+<!-- MAIN -->
+<div class="main">
 
-  <div id="install-banner" class="install-banner"></div>
+<!-- CORREOS -->
+<div class="page on" id="p-correos">
+  <div class="page-hdr">
+    <div class="page-title">Correos CEAR</div>
+    <div class="page-sub">Pega el texto del correo de inicio o fin de estancia y el sistema lo interpreta</div>
+  </div>
+  <div id="msg-correos"></div>
 
   <div class="card">
-    <div class="meta-grid">
-      <div class="full">
-        <label>Casa</label>
-        <select id="casa">
-          <option value="">Seleccionar casa…</option>
-          <option>Milema</option>
-          <option>Maria Cristina</option>
-          <option>La Hosteria</option>
-          <option>Mencey</option>
-          <option>La Molina</option>
+    <div class="card-title">Texto del correo</div>
+    <textarea id="txtCorreo" placeholder="Pega aquí el correo de CEAR (inicio o fin de estancia)..."></textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="document.getElementById('txtCorreo').value=''">Limpiar</button>
+      <button class="btn btn-primary" onclick="procesarCorreo()">Interpretar correo →</button>
+    </div>
+  </div>
+
+  <div id="prevArea" style="display:none">
+    <div class="card">
+      <div class="card-title">Datos detectados — revisa y confirma</div>
+      <div id="detectMsg" class="detect-box"></div>
+      <div class="g3" style="margin-bottom:12px">
+        <div class="fg"><label>Tipo de movimiento</label>
+          <select id="pTipo"><option value="INICIO">Inicio de estancia</option><option value="FIN">Fin de estancia</option><option value="TRASLADO">Traslado</option></select>
+        </div>
+        <div class="fg"><label>Hostal</label>
+          <select id="pHostal">
+            <option>Mencey</option><option>La Molina</option><option>La Hostería</option>
+            <option>Milema</option><option>Casa Lima</option><option>María Cristina</option>
+          </select>
+        </div>
+        <div class="fg"><label>Fecha</label><input type="date" id="pFecha"></div>
+      </div>
+      <div id="personasPrev"></div>
+      <div class="btn-row right">
+        <button class="btn" onclick="cancelarPrev()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmar()">Confirmar y añadir →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MANUAL -->
+<div class="page" id="p-manual">
+  <div class="page-hdr">
+    <div class="page-title">Entrada manual</div>
+    <div class="page-sub">Añade o edita un huésped directamente sin correo</div>
+  </div>
+  <div id="msg-manual"></div>
+  <div class="card">
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg" style="grid-column:span 2">
+        <label>Nombre completo</label>
+        <input type="text" id="mNombre" placeholder="NOMBRE APELLIDO APELLIDO">
+      </div>
+    </div>
+    <div class="g3" style="margin-bottom:10px">
+      <div class="fg"><label>Hostal</label>
+        <select id="mHostal">
+          <option>Mencey</option><option>La Molina</option><option>La Hostería</option>
+          <option>Milema</option><option>Casa Lima</option><option>María Cristina</option>
         </select>
       </div>
-      <div>
-        <label>Responsable</label>
-        <input type="text" id="responsable" placeholder="Tu nombre…">
+      <div class="fg"><label>Fecha entrada (dejar vacío = inicio quincena)</label><input type="date" id="mFechaEnt"></div>
+      <div class="fg"><label>Fecha salida (dejar vacío = fin quincena)</label><input type="date" id="mFechaSal"></div>
+    </div>
+    <div class="g3" style="margin-bottom:10px">
+      <div class="fg"><label>Fecha de nacimiento</label><input type="date" id="mFnac"></div>
+      <div class="fg"><label>Cabeza de familia</label>
+        <select id="mCabeza"><option value="no">No</option><option value="si">Sí</option></select>
       </div>
-      <div>
-        <label>Fecha</label>
-        <input type="date" id="fecha">
+      <div class="fg"><label>Picnic de salida</label>
+        <select id="mPicnic"><option value="no">No</option><option value="si">Sí</option></select>
       </div>
     </div>
+    <div class="g2" style="margin-bottom:12px">
+      <div class="fg"><label>Min iniciación (días)</label><input type="number" id="mMin" value="0" min="0"></div>
+      <div class="fg"><label>Snack escolar (días)</label><input type="number" id="mSnack" value="0" min="0"></div>
+    </div>
+    <button class="btn btn-dark" onclick="addManual()">Guardar huésped</button>
   </div>
-
-  <div class="card" id="sec-desayuno">
-    <div class="section-header" onclick="toggleSec('desayuno')">
-      <span class="dot section-desayuno-dot"></span>
-      <span>Desayuno</span>
-      <span class="badge" id="badge-desayuno">0</span>
-      <span class="chevron open" id="chev-desayuno">▾</span>
-    </div>
-    <div class="section-body open" id="body-desayuno">
-      <div id="grid-desayuno"></div>
-    </div>
-  </div>
-
-  <div class="card" id="sec-picnic">
-    <div class="section-header" onclick="toggleSec('picnic')">
-      <span class="dot section-picnic-dot"></span>
-      <span>Pic-nic</span>
-      <span class="badge" id="badge-picnic">0</span>
-      <span class="chevron open" id="chev-picnic">▾</span>
-    </div>
-    <div class="section-body open" id="body-picnic">
-      <div id="grid-picnic"></div>
-    </div>
-  </div>
-
-  <div class="card" id="sec-meriendas">
-    <div class="section-header" onclick="toggleSec('meriendas')">
-      <span class="dot" style="background:#E05C97"></span>
-      <span>Meriendas</span>
-      <span class="badge" id="badge-meriendas">0</span>
-      <span class="chevron open" id="chev-meriendas">▾</span>
-    </div>
-    <div class="section-body open" id="body-meriendas">
-      <div id="grid-meriendas"></div>
-    </div>
-  </div>
-
-  <div class="card" id="sec-limpieza">
-    <div class="section-header" onclick="toggleSec('limpieza')">
-      <span class="dot section-limpieza-dot"></span>
-      <span>Limpieza</span>
-      <span class="badge" id="badge-limpieza">0</span>
-      <span class="chevron open" id="chev-limpieza">▾</span>
-    </div>
-    <div class="section-body open" id="body-limpieza">
-      <div id="grid-limpieza"></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="notes-wrap">
-      <label>Notas adicionales</label>
-      <textarea id="notas" placeholder="Observaciones del pedido…"></textarea>
-    </div>
-  </div>
-
-  <div id="preview-msg" class="preview-card"></div>
-
-  <button class="btn-wa" onclick="enviarWhatsApp()">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-    Enviar pedido por WhatsApp
-  </button>
-
-  <button class="btn-copy" onclick="copiarMensaje()">
-    📋 Copiar mensaje
-  </button>
-
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- HUESPEDES -->
+<div class="page" id="p-huespedes">
+  <div class="page-hdr">
+    <div class="page-title">Huéspedes registrados</div>
+    <div class="page-sub" id="hSub">Lista de huéspedes activos en la quincena</div>
+  </div>
+  <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <input type="text" id="hBuscar" placeholder="Buscar por nombre..." oninput="renderH()" style="max-width:260px">
+    <select id="hHostal" onchange="renderH()" style="max-width:180px">
+      <option value="">Todos los hostales</option>
+      <option>Mencey</option>
+      <option>La Molina</option>
+      <option>La Hostería</option>
+      <option>Milema</option>
+      <option>Casa Lima</option>
+      <option>María Cristina</option>
+    </select>
+  </div>
+  <div id="hContent"></div>
+</div>
+
+<!-- FESTIVOS -->
+<div class="page" id="p-festivos">
+  <div class="page-hdr">
+    <div class="page-title">Festivos de la quincena</div>
+    <div class="page-sub">Los días festivos no computan como días de snack escolar</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Añadir festivo</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Fecha del festivo</label><input type="date" id="fFecha"></div>
+      <div class="fg"><label>Descripción (opcional)</label><input type="text" id="fDesc" placeholder="Ej: Día de Canarias"></div>
+    </div>
+    <button class="btn btn-primary" onclick="addFestivo()">Añadir festivo</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Festivos registrados</div>
+    <div class="festivos-wrap" id="fLista"></div>
+    <div class="tip">Los sábados y domingos se excluyen automáticamente del cálculo de snack escolar. Solo añade aquí los festivos adicionales.</div>
+  </div>
+</div>
+
+<!-- RESUMEN -->
+<div class="page" id="p-resumen">
+  <div class="page-hdr">
+    <div class="page-title">Resumen de facturación</div>
+    <div class="page-sub">Vista previa de importes por hostal antes de generar el Excel</div>
+  </div>
+  <div id="rContent"></div>
+</div>
+
+<!-- GENERAR -->
+<div class="page" id="p-generar">
+  <div class="page-hdr">
+    <div class="page-title">Generar facturas Excel</div>
+    <div class="page-sub">Configura los números de factura y descarga el archivo con el formato exacto</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Numeración y tarifas</div>
+    <div class="g4" style="margin-bottom:10px">
+      <div class="fg"><label>Nº factura inicial</label><input type="number" id="cfgNum" value="3809"></div>
+      <div class="fg"><label>Año (2 dígitos)</label><input type="number" id="cfgAno" value="26"></div>
+      <div class="fg"><label>Tarifa diaria (€)</label><input type="number" id="cfgTar" value="40" step="0.01"></div>
+      <div class="fg"><label>IGIC (%)</label><input type="number" id="cfgIgic" value="7" step="0.1"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>Min iniciación (€/día)</label><input type="number" id="cfgMin" value="4.59" step="0.01"></div>
+      <div class="fg"><label>Snack escolar (€/día)</label><input type="number" id="cfgSnack" value="2" step="0.01"></div>
+      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="4.67" step="0.01"></div>
+    </div>
+    <div class="btn-row right" style="margin-top:14px">
+      <button class="btn btn-dark" onclick="verPreview()">Vista previa</button>
+      <button class="btn btn-primary" onclick="generarExcel()">Generar y descargar Excel →</button>
+    </div>
+  </div>
+  <div id="genPreview"></div>
+  <div id="genResult"></div>
+</div>
+
+<!-- CONFIG -->
+<div class="page" id="p-config">
+  <div class="page-hdr">
+    <div class="page-title">Configuración</div>
+    <div class="page-sub">Ajustes generales del sistema</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Datos de la empresa</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Email que aparece en facturas</label><input type="text" id="cfgEmail" value="pablosarria@urpihospedajes.com"></div>
+      <div class="fg"><label>Teléfono</label><input type="text" id="cfgTel" value="00 34 822 098 235"></div>
+    </div>
+    <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Datos guardados (localStorage)</div>
+    <div style="font-size:11px;color:var(--gray);font-family:'JetBrains Mono',monospace;margin-bottom:12px" id="storageInfo">—</div>
+    <div class="btn-row">
+      <button class="btn btn-danger btn-sm" onclick="limpiarQuincena()">Limpiar quincena actual</button>
+      <button class="btn btn-sm" onclick="exportarJSON()">Exportar datos JSON</button>
+    </div>
+    <div class="tip" style="margin-top:10px">Los datos se guardan automáticamente en este navegador. Si cambias de ordenador o navegador, los datos no estarán disponibles.</div>
+  </div>
+</div>
+
+
+<!-- IMPORTAR FACTURAS -->
+<div class="page" id="p-importar">
+  <div class="page-hdr">
+    <div class="page-title">Importar facturas anteriores</div>
+    <div class="page-sub">Sube las facturas Excel de la última quincena para cargar los huéspedes activos como base de partida</div>
+  </div>
+  <div id="msg-importar"></div>
+  <div class="card">
+    <div class="card-title">Subir archivos Excel (.xlsx)</div>
+    <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Puedes subir varias facturas a la vez (una por hostal). El sistema leerá los huéspedes y los cargará como activos en la quincena actual.</p>
+    <div style="border:2px dashed var(--gray3);border-radius:var(--r);padding:24px;text-align:center;cursor:pointer;transition:border-color 0.15s" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--orange)'" ondragleave="this.style.borderColor='var(--gray3)'" ondrop="handleDrop(event)">
+      <div style="font-size:24px;margin-bottom:8px">📂</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:4px">Arrastra los archivos aquí o haz clic para seleccionar</div>
+      <div style="font-size:11px;color:var(--gray)">Acepta múltiples archivos .xlsx</div>
+      <input type="file" id="fileInput" accept=".xlsx" multiple style="display:none" onchange="importarExcels(this.files)">
+    </div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="chkLimpiar" checked>
+        Limpiar huéspedes actuales antes de importar
+      </label>
+    </div>
+  </div>
+  <div id="importResult"></div>
+</div>
+
+<!-- CERRAR QUINCENA -->
+<div class="page" id="p-cerrar">
+  <div class="page-hdr">
+    <div class="page-title">Cerrar quincena</div>
+    <div class="page-sub">Cierra la quincena actual y prepara la siguiente con los huéspedes que continúan</div>
+  </div>
+  <div id="msg-cerrar"></div>
+  <div class="card">
+    <div class="card-title">Resumen de la quincena actual</div>
+    <div id="cerrarResumen"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Siguiente quincena</div>
+    <div id="cerrarSiguiente" style="margin-bottom:12px"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="cerrarQuincena()">Cerrar y pasar a la siguiente →</button>
+    </div>
+    <div class="tip" style="margin-top:10px">Los huéspedes sin fecha de salida se traspasarán automáticamente a la siguiente quincena. Los que tienen fecha de salida en esta quincena no se traspasan.</div>
+  </div>
+</div>
+</div><!-- /main -->
+</div><!-- /wrap -->
 
 <script>
-const PRODUCTS = {
-  desayuno: [
-    {n:"Leche", u:"lts"},
-    {n:"Zumo", u:"lts"},
-    {n:"Café", u:"pts"},
-    {n:"Azúcar", u:"pts"},
-    {n:"Mantequilla", u:"uds"},
-    {n:"Cereal Chocolate", u:"cajas"},
-    {n:"Cereal de Maíz", u:"cajas"},
-    {n:"Té negro", u:"cajas"},
-    {n:"Té rojo", u:"cajas"},
-  ],
-  picnic: [
-    {n:"Queso", u:"pts"},
-    {n:"Jamón", u:"pts"},
-    {n:"Pavo", u:"pts"},
-    {n:"Salami", u:"pts"},
-    {n:"Dulces", u:"pts"},
-    {n:"Pan molde", u:"pts"},
-    {n:"Bolsitas para bocadillos", u:"cajas"},
-    {n:"Papel transparente", u:"uds"},
-  ],
-  limpieza: [
-    {n:"Friegasuelos", u:"uds"},
-    {n:"Lejía", u:"uds"},
-    {n:"Jabón de lavar", u:"uds"},
-    {n:"Lavavajillas", u:"uds"},
-    {n:"Bolsas pequeñas", u:"uds"},
-    {n:"Bolsas grandes", u:"uds"},
-    {n:"Fregona", u:"uds"},
-    {n:"CIF", u:"uds"},
-    {n:"Ambientador spray", u:"uds"},
-    {n:"Percarbonato", u:"uds"},
-  ],
-  meriendas: [
-    {n:"Huevos", u:"uds"},
-    {n:"Zumos pequeños", u:"uds"},
-    {n:"Batido de fresa", u:"uds"},
-    {n:"Batido chocolate", u:"uds"},
-    {n:"Yogures", u:"uds"},
-    {n:"Gelatina", u:"uds"},
-    {n:"Sobaos", u:"uds"},
-    {n:"Magdalenas", u:"uds"},
-    {n:"Perritos calientes", u:"uds"},
-    {n:"Pan para perritos", u:"uds"},
-  ]
+const MESES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const HOSTALES={
+  'Mencey':{dir:'Calle Mencey Bentenuya, 2 38008 Santa Cruz de Tenerife',cod:'VI_Mencey'},
+  'La Molina':{dir:'Avda. Buenos Aires, 44 38003 Santa Cruz de Tenerife',cod:'VI_La Molina'},
+  'La Hostería':{dir:'Calle Simón Bolívar, 4 38007 Santa Cruz de Tenerife',cod:'VI_La Hostería'},
+  'Milema':{dir:'Calle Simón Bolívar, 3 38007 Santa Cruz de Tenerife',cod:'VI_Milema'},
+  'Casa Lima':{dir:'Alfredo Martín Reyes, 7 35400 Arucas (Gran Canaria)',cod:'VI_Casa Lima'},
+  'María Cristina':{dir:'Calle María Cristina, 22 38003 Santa Cruz de Tenerife',cod:'VI_María Cristina'}
 };
+const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
+const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
-const PRODUCTS_MENCEY = {
-  desayuno: [
-    {n:"Colacao", u:"uds"},
-    {n:"Gofio", u:"uds"},
-    {n:"Mermelada fresa", u:"uds"},
-    {n:"Mermelada melocotón", u:"uds"},
-    {n:"Manzanilla", u:"cajas"},
-    {n:"Menta poleo", u:"cajas"},
-    {n:"Tila", u:"cajas"},
-    {n:"Té verde", u:"cajas"},
-    {n:"Pimienta negra", u:"uds"},
-    {n:"Aceite", u:"uds"},
-    {n:"Vinagre", u:"uds"},
-    {n:"Sal", u:"uds"},
-    {n:"Agua pequeña", u:"uds"},
-    {n:"Bollitos chocolate", u:"uds"},
-    {n:"Croissant", u:"uds"},
-    {n:"Yogur de beber", u:"uds"},
-    {n:"Quesos pequeños", u:"uds"},
-  ],
-  picnic: [
-    {n:"Bolsas de traslado", u:"uds"},
-  ],
-  limpieza: [
-    {n:"Papel higiénico", u:"uds"},
-    {n:"Gel ducha", u:"uds"},
-    {n:"Gel de manos", u:"uds"},
-    {n:"Pastillas lavavajillas", u:"uds"},
-    {n:"Sal lavavajillas", u:"uds"},
-    {n:"Abrillantador lavavajillas", u:"uds"},
-    {n:"Vinagre de limpieza", u:"uds"},
-    {n:"Quitagrasa", u:"uds"},
-    {n:"Paños microfibras", u:"uds"},
-    {n:"Limpiacristales", u:"uds"},
-    {n:"Guantes", u:"uds"},
-    {n:"Escoba/palos", u:"uds"},
-    {n:"Estropajo", u:"uds"},
-    {n:"Gel de baño", u:"uds"},
-    {n:"Desengrasante", u:"uds"},
-    {n:"Papel secamanos", u:"uds"},
-  ],
-  meriendas: []
-};
+// Firebase config (via window globals inyectados por módulo ES)
+const PROJECT='urpi-facturacion';
+const API=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
+const FB_KEY='AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc';
 
-function getActiveProducts(cat) {
-  return [...PRODUCTS[cat], ...PRODUCTS_MENCEY[cat]];
+let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
+
+function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
+
+// qKey: clave de quincena para filtrar en Firestore
+function qKey(){return `${S.qAno}_${S.qMes}_${S.qTipo}`;}
+
+async function guardar(){
+  try{
+    localStorage.setItem('urpi_config',JSON.stringify(S.config));
+    localStorage.setItem(festKey(),JSON.stringify(S.festivos));
+    // Borrar solo los de la quincena actual
+    const getRes=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
+    const getData=await getRes.json();
+    const docsExist=(getData.documents||[]).filter(d=>
+      (d.fields?.quincena?.stringValue||'')=== qKey()
+    );
+    for(const d of docsExist){
+      const docId=d.name.split('/').pop();
+      await fetch(`${API}/huespedes/${docId}?key=${FB_KEY}`,{method:'DELETE'});
+    }
+    // Insertar los actuales con campo quincena
+    for(let idx=0;idx<S.huespedes.length;idx++){
+      const h=S.huespedes[idx];
+      const id=String(h.id);
+      await fetch(`${API}/huespedes?documentId=${encodeURIComponent(id)}&key=${FB_KEY}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({fields:{
+          id:{stringValue:id},
+          nombre:{stringValue:h.nombre||''},
+          fnac:{stringValue:h.fnac||''},
+          hostal:{stringValue:h.hostal||''},
+          fecha_entrada:{stringValue:h.fechaEntrada||''},
+          fecha_salida:{stringValue:h.fechaSalida||''},
+          cabeza:{booleanValue:!!h.cabeza},
+          picnic:{booleanValue:!!h.picnic},
+          min_dias:{integerValue:h.minDias||0},
+          snack_dias:{integerValue:h.snackDias||0},
+          importado:{booleanValue:!!h.importado},
+          orden:{integerValue:idx},
+          tipo_manual:{stringValue:h.tipoManual||''},
+          sin_snack:{booleanValue:!!h.sinSnack},
+          quincena:{stringValue:qKey()}
+        }})
+      });
+    }
+  }catch(e){console.error('Error guardando:',e);}
+  actualizarUI();
 }
 
-function buildGrid(cat) {
-  const grid = document.getElementById('grid-' + cat);
-  grid.innerHTML = '';
-  getActiveProducts(cat).forEach((p, i) => {
-    const row = document.createElement('div');
-    row.className = 'item-row';
-    const isMenceyExtra = i >= PRODUCTS[cat].length;
-    row.innerHTML = `
-      <div class="item-info">
-        <div class="item-name">${p.n}</div>
-        <div class="item-unit">${p.u}</div>
-      </div>
-      <div class="qty-wrap">
-        <button class="qty-btn" onclick="changeQty('${cat}',${i},-1)">−</button>
-        <input class="qty-input" type="number" min="0" value="0" id="q_${cat}_${i}" oninput="updateBadge('${cat}')">
-        <button class="qty-btn" onclick="changeQty('${cat}',${i},1)">+</button>
-      </div>`;
-    grid.appendChild(row);
-  });
-}
-
-['desayuno','picnic','meriendas','limpieza'].forEach(buildGrid);
-
-document.getElementById('casa').addEventListener('change', () => {
-  ['desayuno','picnic','meriendas','limpieza'].forEach(cat => {
-    buildGrid(cat);
-    updateBadge(cat);
-  });
-});
-
-function changeQty(cat, i, delta) {
-  const inp = document.getElementById(`q_${cat}_${i}`);
-  inp.value = Math.max(0, (parseInt(inp.value) || 0) + delta);
-  updateBadge(cat);
-}
-
-function updateBadge(cat) {
-  let count = 0;
-  getActiveProducts(cat).forEach((_, i) => {
-    if ((parseInt(document.getElementById(`q_${cat}_${i}`).value) || 0) > 0) count++;
-  });
-  document.getElementById('badge-' + cat).textContent = count;
-}
-
-function toggleSec(cat) {
-  const body = document.getElementById('body-' + cat);
-  const chev = document.getElementById('chev-' + cat);
-  body.classList.toggle('open');
-  chev.classList.toggle('open');
-}
-
-function getFecha() {
-  const f = document.getElementById('fecha').value;
-  if (!f) return '';
-  const [y, m, d] = f.split('-');
-  return `${d}/${m}/${y}`;
-}
-
-function buildMsg() {
-  const casa = document.getElementById('casa').value;
-  const resp = document.getElementById('responsable').value.trim();
-  const fecha = getFecha();
-  const notas = document.getElementById('notas').value.trim();
-  if (!casa) return null;
-  const catLabels = { desayuno: 'DESAYUNO', picnic: 'PIC-NIC', meriendas: 'MERIENDAS', limpieza: 'LIMPIEZA' };
-  let msg = `Buenos días.\nPedido ${casa}. ${fecha}\n`;
-  ['desayuno','picnic','meriendas','limpieza'].forEach(cat => {
-    const lines = [];
-    getActiveProducts(cat).forEach((p, i) => {
-      const q = parseInt(document.getElementById(`q_${cat}_${i}`).value) || 0;
-      if (q > 0) lines.push(`${p.n}... ${q} ${p.u}`);
+async function cargar(){
+  try{
+    const res=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
+    const data=await res.json();
+    const docs=(data.documents||[]).filter(d=>
+      (d.fields?.quincena?.stringValue||'')=== qKey()
+    );
+    docs.sort((a,b)=>{
+      const oa=parseInt(a.fields?.orden?.integerValue||0);
+      const ob=parseInt(b.fields?.orden?.integerValue||0);
+      return oa-ob;
     });
-    if (lines.length > 0) {
-      msg += `\n${catLabels[cat]}\n`;
-      lines.forEach(l => msg += l + '\n');
+    S.huespedes=docs.map(d=>{
+      const f=d.fields||{};
+      return{
+        id:f.id?.stringValue||d.name.split('/').pop(),
+        nombre:f.nombre?.stringValue||'',
+        fnac:f.fnac?.stringValue||'',
+        hostal:f.hostal?.stringValue||'',
+        fechaEntrada:f.fecha_entrada?.stringValue||'',
+        fechaSalida:f.fecha_salida?.stringValue||'',
+        cabeza:f.cabeza?.booleanValue||false,
+        picnic:f.picnic?.booleanValue||false,
+        minDias:parseInt(f.min_dias?.integerValue||0),
+        snackDias:parseInt(f.snack_dias?.integerValue||0),
+        importado:f.importado?.booleanValue||false,
+        tipoManual:f.tipo_manual?.stringValue||'',
+        sinSnack:f.sin_snack?.booleanValue||false,
+        orden:parseInt(f.orden?.integerValue||0),
+        quincena:f.quincena?.stringValue||''
+      };
+    });
+    const fv=localStorage.getItem(festKey());
+    S.festivos=fv?JSON.parse(fv):[];
+    const cfg=localStorage.getItem('urpi_config');
+    if(cfg){const c=JSON.parse(cfg);S.config=c;
+      const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
+      const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 235';
+    }
+  }catch(e){console.error('Error cargando:',e);S.huespedes=[];S.festivos=[];}
+  actualizarUI();
+}
+function actualizarUI(){
+  document.getElementById('nCnt').textContent=S.huespedes.length;
+  document.getElementById('fCnt').textContent=S.festivos.length;
+  const keys=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('urpi_'))keys.push(k);}}catch(e){}
+  document.getElementById('sfooter').textContent=`${S.huespedes.length} huésp. · ${S.festivos.length} festivos`;
+  document.getElementById('storageInfo').textContent=`Huéspedes por quincena (${qKey()}) · Festivos (${festKey()}) · Claves localStorage: ${keys.length}`;
+}
+
+async function cambiarQ(){
+  S.qTipo=parseInt(document.getElementById('sQ').value);
+  S.qMes=parseInt(document.getElementById('sM').value);
+  S.qAno=parseInt(document.getElementById('sA').value);
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  S.qIni=S.qTipo===1?new Date(S.qAno,S.qMes-1,1):new Date(S.qAno,S.qMes-1,16);
+  S.qFin=S.qTipo===1?new Date(S.qAno,S.qMes-1,15):new Date(S.qAno,S.qMes-1,dm);
+  document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+  await cargar();
+}
+
+function fmt(d){return d?d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
+function fmtISO(d){if(!d)return '';if(typeof d==='string')return d;const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
+function pd(s){
+  if(!s)return null;
+  if(s instanceof Date)return s;
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){const y=m[3].length===2?2000+parseInt(m[3]):parseInt(m[3]);return new Date(y,parseInt(m[2])-1,parseInt(m[1]),12,0,0);}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return new Date(parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]),12,0,0);
+  return null;
+}
+function edad(fnac,ref){
+  const d=pd(fnac);
+  if(!d||isNaN(d.getTime()))return 99;
+  const r=ref instanceof Date?ref:(S.qFin||new Date());
+  const rY=r.getFullYear(),rM=r.getMonth(),rD=r.getDate();
+  const dY=d.getFullYear(),dM=d.getMonth(),dD=d.getDate();
+  let a=rY-dY;
+  if(rM<dM||(rM===dM&&rD<dD))a--;
+  return a;
+}
+function tipoH(fnac,h){
+  // Si tiene tipo manual (importado del Excel), usarlo
+  if(h&&h.tipoManual){
+    if(h.tipoManual==='bebe')return 'bebe';
+    if(h.tipoManual==='menor')return 'menor';
+    if(h.tipoManual==='adulto')return 'adulto';
+  }
+  // Si tiene fecha de nacimiento, calcular
+  if(fnac){const ref=S.qFin||new Date();const e=edad(fnac,ref);return e<3?'bebe':e<18?'menor':'adulto';}
+  // Sin datos: adulto por defecto
+  return 'adulto';
+}
+function calcLectivos(ini,fin){
+  if(!ini||!fin||!S.qIni||!S.qFin)return 0;
+  // El dia de entrada NUNCA cuenta para snack — siempre empieza el dia siguiente
+  // Si entró antes de la quincena, el snack empieza desde qIni (primer dia quincena)
+  const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const qIni=norm(S.qIni);
+  const entNorm=norm(ini);
+  let desdeDate;
+  if(entNorm<qIni){
+    desdeDate=new Date(qIni); // entró antes de la quincena: desde primer dia quincena
+  } else {
+    // entró durante la quincena (incluyendo el primer dia): snack desde el dia siguiente
+    desdeDate=new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
+  }
+  const hasta=norm(new Date(Math.min(fin.getTime(),S.qFin.getTime())));
+  let n=0;const d=new Date(desdeDate);
+  while(d<=hasta){
+    const dow=d.getDay(),iso=fmtISO(d);
+    if(dow!==0&&dow!==6&&!S.festivos.includes(iso))n++;
+    d.setDate(d.getDate()+1);
+  }
+  return n;
+}
+
+function nav(btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const id=btn.dataset.page;
+  document.getElementById('p-'+id).classList.add('on');
+  btn.classList.add('active');
+  if(id==='huespedes')renderH();
+  if(id==='resumen')renderR();
+  if(id==='festivos')renderF();
+  if(id==='config')renderConfig();
+}
+
+function showMsg(pid,txt,tipo){
+  const el=document.getElementById('msg-'+pid);
+  if(!el)return;
+  el.innerHTML=`<div class="msg msg-${tipo}">${txt}</div>`;
+  setTimeout(()=>{if(el)el.innerHTML='';},3500);
+}
+
+function esNac(s){return NACS.some(n=>s.toUpperCase().includes(n));}
+function esSkip(s){return SKIP.some(k=>s.toUpperCase().includes(k));}
+function esCabeceraEmail(s){
+  // Filtra líneas que son cabeceras de email, no nombres de personas
+  const l=s.trim();
+  const prefijos=['DE:','PARA:','CC:','CCO:','ASUNTO:','SUBJECT:','FROM:','TO:','BCC:','SENT:','ENVIADO:','FECHA:','DATE:','RE:','FW:','FWD:'];
+  const up=l.toUpperCase();
+  if(prefijos.some(p=>up.startsWith(p)))return true;
+  // Líneas con email entre < >
+  if(/<[^@]+@[^>]+>/.test(l))return true;
+  // Líneas con formato email directo
+  if(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(l))return true;
+  return false;
+}
+function esNombre(s){
+  const l=s.trim();
+  if(l.length<5||esSkip(l)||esNac(l)||esCabeceraEmail(l)||/^\d/.test(l)||/[0-9]{4,}/.test(l))return false;
+  return l.split(/\s+/).filter(p=>p.length>1&&/^[A-ZÁÉÍÓÚÜÑ]/.test(p)).length>=2;
+}
+function detHostal(txt){
+  const u=txt.toUpperCase();
+  for(const h of Object.keys(HOSTALES)){if(u.includes(h.toUpperCase()))return h;}
+  if(u.includes('MENCEY'))return 'Mencey';if(u.includes('MOLINA'))return 'La Molina';
+  if(u.includes('HOSTER'))return 'La Hostería';if(u.includes('MILEMA'))return 'Milema';
+  if(u.includes('LIMA'))return 'Casa Lima';if(u.includes('CRISTINA'))return 'María Cristina';
+  return null;
+}
+function esCasaLimaFormat(txt){
+  // Formato Casa Lima: número habitación + nombre + apellidos + NIE + NAC + fnac + fecha
+  return /HABITACI[OÓ]N/i.test(txt)&&/F\.NACIMIENTO/i.test(txt);
+}
+
+function parsPersonasCasaLima(txt){
+  const CABECERAS=['HABITACIÓN','HABITACION','NOMBRE','APELLIDO','NIE/PASAPORTE','NIE',
+    'PASAPORTE','NACIONALIDAD','F.NACIMIENTO','FECHA','HORA','ANTES ALMUERZO',
+    'DESPUÉS ALMUERZO','DESPUES ALMUERZO','BUENOS DÍAS','BUENOS DIAS',
+    'COMUNICAMOS','SALUDOS','GRACIAS'];
+  const lineas=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const out=[];
+  let i=0;
+  while(i<lineas.length){
+    const l=lineas[i];
+    // Saltar cabeceras
+    if(CABECERAS.some(c=>l.toUpperCase().startsWith(c.toUpperCase()))){i++;continue;}
+    // Número de habitación: entero solo
+    if(/^\d+$/.test(l)&&i+5<lineas.length){
+      const nombre=lineas[i+1]?lineas[i+1].trim():'';
+      const apellidos=lineas[i+2]?lineas[i+2].trim():'';
+      const fnacRaw=lineas[i+5]?lineas[i+5].trim():'';
+      const fm=fnacRaw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+      if(fm&&nombre.length>1&&apellidos.length>1){
+        const nombreCompleto=nombre+' '+apellidos;
+        const fnac=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;
+        out.push({nombre:nombreCompleto,fnac,ageN:null,
+          cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+        i+=7;continue;
+      }
+    }
+    i++;
+  }
+  return out;
+}
+
+function parsPersonas(txt){
+  // Formato especial Casa Lima
+  if(esCasaLimaFormat(txt))return parsPersonasCasaLima(txt);
+
+  // Cabeceras de tabla que se eliminan como líneas completas
+  const CABS_ELIMINAR=['Nombre y Apellidos','Nombre','Apellidos','Fecha Nac.',
+    'Fecha Nacimiento','NIE/Pasaporte','Pasaporte','NIE','Hora',
+    'Fecha + Hora entrada','Fecha + Hora salida','Fecha + Hora',
+    'ANTES DEL ALMUERZO','DESPUÉS DEL ALMUERZO','DESPUES DEL ALMUERZO',
+    'Antes de almuerzo','Después del almuerzo','Antes almuerzo',
+    'Nacionalidad','NACIONALIDAD'];
+
+  // Limpiar y construir array de líneas
+  const lineas=txt.split('\n').map(l=>{
+    let s=l.trim();
+    // Eliminar líneas que son exactamente una cabecera
+    for(const c of CABS_ELIMINAR){
+      if(s.toUpperCase()===c.toUpperCase())return '';
+      // Eliminar si la línea EMPIEZA con la cabecera (cabecera pegada al nombre)
+      if(s.toUpperCase().startsWith(c.toUpperCase()+' ')||
+         s.toUpperCase().startsWith(c.toUpperCase()+'\t')){
+        s=s.slice(c.length).trim();
+      }
+    }
+    return s;
+  }).filter(l=>l.length>0);
+
+  const out=[];
+  const esFecha=s=>/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(s.trim());
+  const esNIE=s=>/^[A-Z][0-9]{7}[A-Z]$/.test(s.trim())||/^[A-Z0-9]{6,12}$/.test(s.trim())&&/\d{4,}/.test(s);
+
+  for(let i=0;i<lineas.length;i++){
+    const l=lineas[i];
+    if(!l||l.length<3)continue;
+
+    const sig1=i+1<lineas.length?lineas[i+1]:'';
+    const sig2=i+2<lineas.length?lineas[i+2]:'';
+    const sig3=i+3<lineas.length?lineas[i+3]:'';
+
+    const m1a=esFecha(sig1);                              // nombre → fecha
+    const m1b=esNac(sig1)&&esFecha(sig2);                 // nombre → nac → fecha
+    const m1c=esNIE(sig1)&&esNac(sig2)&&esFecha(sig3);   // nombre → NIE → nac → fecha
+    const m1d=esNac(sig1)&&esNIE(sig2)&&esFecha(sig3);   // nombre → nac → NIE → fecha
+
+    if(m1a||m1b||m1c||m1d){
+      // Limpiar edad entre paréntesis del nombre
+      const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
+      const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
+      if(nombre.length>=3&&!esSkip(nombre)&&!esNac(nombre)&&!esFecha(nombre)&&!esNIE(nombre)){
+        let fnacRaw='',skip=0;
+        if(m1a){fnacRaw=sig1;skip=1;}
+        else if(m1b){fnacRaw=sig2;skip=2;}
+        else{fnacRaw=sig3;skip=3;}
+        const fm=fnacRaw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+        const fnacISO=fm?`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`:'';
+        if(!out.find(p=>p.nombre.toUpperCase()===nombre.toUpperCase())){
+          out.push({nombre,fnac:fnacISO,ageN:am?parseInt(am[1]):null,
+            cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+        }
+        i+=skip;
+        continue;
+      }
+    }
+
+    // Método 2: nombre clásico (2+ palabras mayúsculas)
+    if(!esFecha(l)&&esNombre(l)&&!esNIE(l)){
+      const skipLineas=['NOMBRE','APELLIDO','FECHA','NACIONALIDAD','NIE','PASAPORTE','HORA',
+        'ESPECIFICAR','USUARIO','ALMUERZO','INICIO','FIN','ESTANCIA','HOSTAL','BUENAS',
+        'BUENOS','INFORMAMOS','GRACIAS','SALUDOS','RECURSO','FINANCIADO','ANTES','DESPUES',
+        'DESPUÉS','TRANSFERENCIA','PAGO','ENTIDAD','HABITACI','CAMBIO','COMUNICAMOS'];
+      if(!skipLineas.some(s=>l.toUpperCase().includes(s))){
+        const am=l.match(/\((\d+)\s+a[ñn]os?\)/i);
+        const nombre=l.replace(/\s*\(\d+\s+a[ñn]os?\)/i,'').trim();
+        let fnac='';
+        for(let j=i+1;j<Math.min(i+5,lineas.length);j++){
+          const s=lineas[j];
+          const fm=s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+          if(fm&&!esNombre(s)){fnac=`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`;break;}
+          if(esNombre(s))break;
+        }
+        if(!out.find(p=>p.nombre.toUpperCase()===nombre.toUpperCase())){
+          out.push({nombre,fnac,ageN:am?parseInt(am[1]):null,
+            cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+        }
+      }
+    }
+  }
+  return out;
+}
+function splitCorreos(txt){
+  // Dividir texto en correos individuales cuando hay varios pegados juntos
+  // Se separan por "Asunto:" / "Subject:" que indica inicio de cabecera de correo reenviado
+  const separadores=txt.split(/(?=(?:Asunto|Subject|ASUNTO):\s*(?:INICIO|FIN|RE:|FW:))/i);
+  // Si no hay separadores, devolver el texto completo
+  if(separadores.length<=1)return[txt];
+  return separadores.filter(s=>s.trim().length>10);
+}
+
+// ============================================================
+// TRASLADO MASIVO (múltiples personas, múltiples hostales)
+// ============================================================
+function esTrasladoMasivo(txt){
+  // Detectar patrón "De X a Y:" con múltiples secciones
+  return (txt.match(/De\s+.+?\s+a\s+.+?:/gi)||[]).length >= 1 &&
+    (/[\*\-\•]\s*\w/m.test(txt) || /UF\d+/i.test(txt));
+}
+
+function parseTrasladoMasivo(txt){
+  const HOSTALES_MAP={
+    'MENCEY':'Mencey','LA MOLINA':'La Molina','MOLINA':'La Molina',
+    'LA HOSTERÍA':'La Hostería','HOSTERÍA':'La Hostería','HOSTERIA':'La Hostería','LA HOSTERIA':'La Hostería',
+    'MILEMA':'Milema','CASA LIMA':'Casa Lima','LIMA':'Casa Lima',
+    'MARÍA CRISTINA':'María Cristina','MARIA CRISTINA':'María Cristina',
+    'Mª CRISTINA':'María Cristina','MA CRISTINA':'María Cristina'
+  };
+  function detectH(s){
+    const u=s.toUpperCase();
+    for(const[k,v] of Object.entries(HOSTALES_MAP)){if(u.includes(k))return v;}
+    return null;
+  }
+  // Fecha del traslado: mañana del correo o fecha explícita
+  let fecha=fmtISO(new Date()); // fallback hoy
+  const fmDate=txt.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if(fmDate)fecha=`${fmDate[3]}-${fmDate[2].padStart(2,'0')}-${fmDate[1].padStart(2,'0')}`;
+  // Si dice "mañana" y no hay fecha explícita, usar mañana
+  if(/ma[ñn]ana/i.test(txt)&&!fmDate){
+    const d=new Date();d.setDate(d.getDate()+1);fecha=fmtISO(d);
+  }
+
+  // Split por secciones "De X a Y:"
+  const grupos=txt.split(/(?=De\s+.+?\s+a\s+.+?:)/i).filter(g=>g.trim());
+  const movimientos=[];
+
+  for(const grupo of grupos){
+    const m=grupo.match(/De\s+(.+?)\s+a\s+(.+?)(?:\s*:|\s*\n)/i);
+    if(!m)continue;
+    const origen=detectH(m[1]);
+    const destino=detectH(m[2]);
+    if(!origen||!destino||origen===destino)continue;
+
+    // Extraer nombres: líneas con * - • o después de UF\d+
+    const nombres=[];
+    for(let linea of grupo.split('\n')){
+      linea=linea.trim();
+      linea=linea.replace(/^[\*\-\•]\s*/,'');
+      linea=linea.replace(/^UF\d+\s*/i,'');
+      linea=linea.replace(/^__.*?__\s*/,'');
+      linea=linea.trim();
+      if(!linea||linea.length<3)continue;
+      if(/^De\s+/i.test(linea))continue;
+      if(/^Habitaci/i.test(linea))continue;
+      if(/^(buenas|pablo|mañana|movimiento|plazas|informar|cambio|tardes|gracias|quedamos|atentas|siguiente|cambios|tarde|almuerzo|cena|parece|como|vamos|entre)/i.test(linea))continue;
+      // Expandir nombres incompletos conocidos
+      if(/^Ianseni$/i.test(linea))linea='IANSENI SANGABI';
+      const palabras=linea.split(/\s+/).filter(p=>p.length>1&&/^[A-ZÁÉÍÓÚÜÑA-Z]/i.test(p));
+      if(palabras.length>=1)nombres.push(linea.trim());
+    }
+    if(nombres.length)movimientos.push({origen,destino,nombres});
+  }
+  return{movimientos,fecha};
+}
+
+function esTraslado(txt){
+  const tieneKeyword=/traslad|cambio de hostal|cambio de casa|muda/i.test(txt);
+  const tieneHostales=Object.keys(HOSTALES).filter(h=>txt.toUpperCase().includes(h.toUpperCase())).length>=2;
+  return tieneKeyword&&tieneHostales;
+}
+
+function parsTraslado(txt){
+  // Detectar hostal origen y destino
+  const hostalesEncontrados=[];
+  for(const h of Object.keys(HOSTALES)){
+    if(txt.toUpperCase().includes(h.toUpperCase()))hostalesEncontrados.push(h);
+  }
+  // Detectar fecha del traslado
+  let fecha='';
+  // Buscar "mañana DD/MM/YYYY" o "el DD/MM/YYYY" o fecha directa
+  const fmManana=txt.match(/ma[ñn]ana[^\d]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/i);
+  const fmFecha=txt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  // También detectar "mañana" sin fecha explícita — usar fecha del mensaje
+  const soloManana=/ma[ñn]ana/i.test(txt)&&!fmManana;
+  if(fmManana){
+    fecha=`${fmManana[3]}-${fmManana[2].padStart(2,'0')}-${fmManana[1].padStart(2,'0')}`;
+  } else if(fmFecha){
+    // La fecha en el correo puede ser la del mensaje, buscar contexto
+    // Si dice "mañana" y hay una fecha, esa fecha es el día del traslado
+    if(/ma[ñn]ana/i.test(txt)){
+      fecha=`${fmFecha[3]}-${fmFecha[2].padStart(2,'0')}-${fmFecha[1].padStart(2,'0')}`;
+    } else {
+      fecha=`${fmFecha[3]}-${fmFecha[2].padStart(2,'0')}-${fmFecha[1].padStart(2,'0')}`;
+    }
+  }
+  // Detectar personas
+  const personas=parsPersonas(txt);
+  // Detectar origen y destino
+  // El origen es el hostal donde estaban (DE / desde)
+  // El destino es el hostal donde van (A / al / hasta)
+  let origen=null,destino=null;
+  const txtUp=txt.toUpperCase();
+  // Buscar patrón "DE [hostal] a/al [hostal]"
+  for(const h of Object.keys(HOSTALES)){
+    const hUp=h.toUpperCase();
+    // Hostal de destino: aparece después de "a ", "al ", "al hostal"
+    const regDest=new RegExp('(?:AL?\\s+(?:HOSTAL\\s+)?|HACIA\\s+)'+hUp,'i');
+    if(regDest.test(txt))destino=h;
+    // Hostal origen: aparece después de "de ", "desde ", o antes de "CAMBIO A"
+    const regOri=new RegExp('(?:DE(?:SDE)?\\s+(?:(?:LA|EL|LOS|LAS)\\s+)?(?:HOSTAL\\s+)?)'+hUp,'i');
+    if(regOri.test(txt)&&h!==destino)origen=h;
+  }
+
+  // Mejorar detección con patrón "HOSTAL X ... CAMBIO A ... HOSTAL Y"
+  const matchCambio=txt.match(/HOSTAL\s+(\w[\w\s]*?)\s*(?:\n[^\n]*)*?CAMBIO\s+A[:\s]+(?:\n[^\n]*)*?HOSTAL\s+(\w[\w\s]*?)\s*(?:\n|$)/i);
+  if(matchCambio){
+    const origenTxt=matchCambio[1].trim().toUpperCase();
+    const destinoTxt=matchCambio[2].trim().toUpperCase();
+    for(const h of Object.keys(HOSTALES)){
+      if(h.toUpperCase().includes(origenTxt)||origenTxt.includes(h.toUpperCase()))origen=h;
+      if(h.toUpperCase().includes(destinoTxt)||destinoTxt.includes(h.toUpperCase()))destino=h;
+    }
+  }
+
+  // Fallback: primer hostal encontrado en el texto = origen, segundo = destino
+  if(!origen&&hostalesEncontrados.length>=1)origen=hostalesEncontrados[0];
+  if(!destino&&hostalesEncontrados.length>=2)destino=hostalesEncontrados[1];
+  // Si solo se encontró uno, intentar con el orden de aparición en el texto
+  if(origen===destino)destino=hostalesEncontrados.find(h=>h!==origen)||destino;
+  return{personas,fecha,origen,destino};
+}
+
+function procesarCorreoUnico(txt){
+  // Detectar si es traslado masivo (múltiples grupos De X a Y)
+  if(esTrasladoMasivo(txt)){
+    const t=parseTrasladoMasivo(txt);
+    return{tipo:'TRASLADO_MASIVO',hostal:null,fecha:t.fecha,personas:[],picnicG:false,trasladoMasivo:t};
+  }
+  // Detectar si es traslado simple
+  if(esTraslado(txt)){
+    const t=parsTraslado(txt);
+    return{tipo:'TRASLADO',hostal:t.destino,hostalOrigen:t.origen,fecha:t.fecha,personas:t.personas,picnicG:false,traslado:t};
+  }
+  const tipo=/FIN DE ESTANCIA/i.test(txt)?'FIN':'INICIO';
+  const hostal=detHostal(txt);
+  const picnicG=/PICNIC/i.test(txt);
+  // Buscar la primera fecha que aparezca en el texto
+  let fecha='';
+  const matches=[...txt.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g)];
+  if(matches.length>0){
+    const m=matches[0];
+    fecha=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  } else fecha=fmtISO(new Date());
+  const personas=parsPersonas(txt);
+  if(picnicG&&tipo==='FIN')personas.forEach(p=>p.picnic=true);
+  personas.forEach(p=>{
+    const e=p.fnac?edad(p.fnac,S.qFin||new Date()):(p.ageN||99);
+    if(e>=3&&e<18){
+      const entD=tipo==='INICIO'?pd(fecha):S.qIni;
+      const salD=tipo==='FIN'?pd(fecha):S.qFin;
+      if(entD&&salD)p.snackDias=calcLectivos(entD,salD);
     }
   });
-  if (resp) msg += `\nResponsable: ${resp}\n`;
-  if (notas) msg += `\nNotas: ${notas}\n`;
-  return msg;
+  return{tipo,hostal,fecha,personas,picnicG};
 }
 
-function enviarWhatsApp() {
-  const msg = buildMsg();
-  if (!msg) { showToast('⚠️ Selecciona una casa primero'); return; }
-  mostrarPreview(msg);
-  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
-}
+function procesarCorreo(){
+  const txt=document.getElementById('txtCorreo').value.trim();
+  if(!txt)return;
 
-function copiarMensaje() {
-  const msg = buildMsg();
-  if (!msg) { showToast('⚠️ Selecciona una casa primero'); return; }
-  mostrarPreview(msg);
-  navigator.clipboard.writeText(msg).then(() => showToast('✅ Mensaje copiado'));
-}
+  const correos=splitCorreos(txt);
 
-function mostrarPreview(msg) {
-  const box = document.getElementById('preview-msg');
-  box.textContent = msg;
-  box.classList.add('open');
-}
+  // Si hay múltiples correos, procesar el primero (el más reciente, arriba)
+  // y mostrar aviso de que hay más
+  const primero=procesarCorreoUnico(correos[0]);
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
+  document.getElementById('pTipo').value=primero.tipo;
+  if(primero.hostal)document.getElementById('pHostal').value=primero.hostal;
+  document.getElementById('pFecha').value=primero.fecha;
 
-// Fecha de hoy
-document.getElementById('fecha').valueAsDate = new Date();
-
-// Semana
-const now = new Date();
-const start = new Date(now.getFullYear(), 0, 1);
-const week = Math.ceil(((now - start) / 86400000 + start.getDay() + 1) / 7);
-document.getElementById('semana-label').textContent = `Semana ${week}`;
-
-// Banner instalación PWA
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  const banner = document.getElementById('install-banner');
-  banner.style.display = 'block';
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (isIOS) {
-    banner.innerHTML = `<strong>📲 Instalar app en iPhone</strong>Pulsa el botón Compartir (⎋) en Safari y luego "Añadir a pantalla de inicio".`;
-  } else {
-    banner.innerHTML = `<strong>📲 Instalar app</strong>Instala la app en tu móvil para acceso rápido sin internet.<button onclick="instalarApp()">Instalar ahora</button>`;
+  const multiMsg=correos.length>1?` <span style="color:#b45309">⚠ Se detectaron ${correos.length} correos — mostrando el primero. Confirma y vuelve a interpretar para el siguiente.</span>`:'';
+  if(primero.tipo==='TRASLADO_MASIVO'){
+    const tm=primero.trasladoMasivo;
+    const total=tm.movimientos.reduce((s,m)=>s+m.nombres.length,0);
+    const grupos=tm.movimientos.map(m=>`${m.origen}→${m.destino}(${m.nombres.length})`).join(', ');
+    document.getElementById('detectMsg').innerHTML=`<strong>Traslado masivo</strong>. ${total} persona(s) en ${tm.movimientos.length} grupos: ${grupos}. Fecha: ${primero.fecha}`;
+    window._prev=[];
+    window._trasladoMasivo=tm;
+    renderPrevTrasladoMasivo(tm);
+    document.getElementById('prevArea').style.display='block';
+    return;
   }
-});
+  const tipoLabel=primero.tipo==='TRASLADO'?`Traslado de <strong>${primero.hostalOrigen||'?'}</strong> a <strong>${primero.hostal||'?'}</strong>`:
+    primero.tipo==='INICIO'?'Inicio de estancia':'Fin de estancia';
+  const hostalLabel=primero.tipo==='TRASLADO'?'':primero.hostal?' en <strong>'+primero.hostal+'</strong>':'';
+  document.getElementById('detectMsg').innerHTML=`<strong>${tipoLabel}</strong>${hostalLabel}. <strong>${primero.personas.length}</strong> persona(s).${primero.picnicG?' Picnic solicitado.':''}${multiMsg}`;
 
-function instalarApp() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => {
-      deferredPrompt = null;
-      document.getElementById('install-banner').style.display = 'none';
+  window._prev=primero.personas;
+  window._correosRestantes=correos.slice(1);
+  window._traslado=primero.tipo==='TRASLADO'?primero.traslado:null;
+  renderPrev(primero.personas);
+  document.getElementById('prevArea').style.display='block';
+}
+
+function renderPrev(personas){
+  const a=document.getElementById('personasPrev');
+  if(!personas.length){a.innerHTML='<div class="msg msg-warn">No se detectaron personas. Usa la entrada manual.</div>';return;}
+  a.innerHTML=personas.map((p,i)=>{
+    const e=p.fnac?edad(p.fnac,S.qFin||new Date()):(p.ageN||99);
+    const t=e<3?'bebe':e<18?'menor':'adulto';
+    const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
+    const bt=t==='adulto'?'Adulto':t==='menor'?'Menor':'Bebé';
+    // Solo adultos pueden ser cabeza
+    const puedeSerCabeza=t==='adulto';
+    return `<div class="pprev" id="pprev-${i}">
+      <div class="pprev-top">
+        <div class="fg"><label>Nombre</label><input type="text" value="${p.nombre}" onchange="window._prev[${i}].nombre=this.value;renderPrevRow(${i})"></div>
+        <div class="fg"><label>Fecha nacimiento</label><input type="date" value="${p.fnac}" onchange="window._prev[${i}].fnac=this.value;renderPrevRow(${i})"></div>
+        <div style="padding-top:20px;display:flex;gap:6px;align-items:center">
+          <span class="badge ${bc}">${bt}</span>
+          ${puedeSerCabeza?`<button onclick="toggleCabeza(${i})" style="padding:3px 10px;border-radius:20px;border:1.5px solid;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.15s;${p.cabeza?'background:var(--navy);color:#fff;border-color:var(--navy)':'background:#fff;color:var(--gray);border-color:var(--gray3)'}" id="btn-cabeza-${i}">★ Negrita</button>`:''}
+        </div>
+      </div>
+      <div class="pprev-ext">
+        <label><input type="checkbox" ${p.picnic?'checked':''} onchange="window._prev[${i}].picnic=this.checked"> Picnic</label>
+        <label>Min días: <input type="number" value="${p.minDias}" min="0" onchange="window._prev[${i}].minDias=parseInt(this.value)||0"></label>
+        <label>Snack días: <input type="number" value="${p.snackDias}" min="0" onchange="window._prev[${i}].snackDias=parseInt(this.value)||0"></label>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderPrevTrasladoMasivo(tm){
+  const a=document.getElementById('personasPrev');
+  let html=`<div class="msg msg-info" style="margin-bottom:12px">
+    Traslado masivo con fecha <strong>${tm.fecha}</strong>.
+    Revisa los grupos y confirma. El sistema actualizará el hostal de cada persona.
+  </div>`;
+  tm.movimientos.forEach((mv,mi)=>{
+    html+=`<div class="card" style="margin-bottom:10px;padding:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--navy)">
+        ${mv.origen} → ${mv.destino} (${mv.nombres.length} personas)
+      </div>`;
+    mv.nombres.forEach((nombre,ni)=>{
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--gray3)">
+        <input type="text" value="${nombre}" style="flex:1;padding:4px 8px;font-size:12px"
+          onchange="window._trasladoMasivo.movimientos[${mi}].nombres[${ni}]=this.value">
+        <span style="font-size:11px;color:var(--gray)">${mv.destino}</span>
+      </div>`;
     });
+    html+='</div>';
+  });
+  a.innerHTML=html;
+  // Replace confirm button behavior
+  const btnConf=document.querySelector('[onclick="confirmar()"]');
+  if(btnConf){btnConf.setAttribute('onclick','confirmarTrasladoMasivo()');}
+}
+
+async function confirmarTrasladoMasivo(){
+  const tm=window._trasladoMasivo;
+  if(!tm)return;
+  const fecha=tm.fecha;
+  // Calcular día anterior para el hostal origen
+  const dT=pd(fecha);
+  const dAnt=new Date(dT.getFullYear(),dT.getMonth(),dT.getDate()-1);
+  const fechaAnt=fmtISO(dAnt);
+  let procesados=0;
+  let nuevos=0;
+
+  for(const mv of tm.movimientos){
+    for(const nombre of mv.nombres){
+      const key=nombre.toUpperCase().trim();
+      const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key||
+        h.nombre.toUpperCase().includes(key.split(' ')[0])&&
+        h.nombre.toUpperCase().includes(key.split(' ').slice(-1)[0]));
+      if(ex){
+        // Actualizar: poner fecha salida en origen y crear nuevo en destino
+        ex.fechaSalida=fechaAnt;
+        S.huespedes.push({
+          id:Date.now()+Math.random(),
+          nombre:ex.nombre,fnac:ex.fnac,
+          hostal:mv.destino,
+          fechaEntrada:fecha,fechaSalida:'',
+          cabeza:ex.cabeza,picnic:false,
+          minDias:ex.minDias||0,snackDias:ex.snackDias||0
+        });
+        procesados++;
+      } else {
+        // No existe — crear nuevo en destino
+        S.huespedes.push({
+          id:Date.now()+Math.random(),
+          nombre:nombre.trim(),fnac:'',
+          hostal:mv.destino,
+          fechaEntrada:fecha,fechaSalida:'',
+          cabeza:false,picnic:false,minDias:0,snackDias:0
+        });
+        nuevos++;
+      }
+    }
+  }
+  window._trasladoMasivo=null;
+  await guardar();
+  cancelarPrev();
+  document.getElementById('txtCorreo').value='';
+  // Restore confirm button
+  const btnConf=document.querySelector('[onclick="confirmarTrasladoMasivo()"]');
+  if(btnConf){btnConf.setAttribute('onclick','confirmar()');}
+  showMsg('correos',`✓ Traslado masivo procesado: ${procesados} actualizados, ${nuevos} nuevos añadidos`,'ok');
+}
+
+function toggleCabeza(i){
+  window._prev[i].cabeza=!window._prev[i].cabeza;
+  const btn=document.getElementById('btn-cabeza-'+i);
+  if(btn){
+    btn.style.background=window._prev[i].cabeza?'var(--navy)':'#fff';
+    btn.style.color=window._prev[i].cabeza?'#fff':'var(--gray)';
+    btn.style.borderColor=window._prev[i].cabeza?'var(--navy)':'var(--gray3)';
   }
 }
 
-// Service Worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js');
+function renderPrevRow(i){
+  // Re-render single row when name/fnac changes to update badge
+  const p=window._prev[i];
+  const e=p.fnac?edad(p.fnac,S.qFin||new Date()):(p.ageN||99);
+  const t=e<3?'bebe':e<18?'menor':'adulto';
+  const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
+  const bt=t==='adulto'?'Adulto':t==='menor'?'Menor':'Bebé';
+  // Just update badge - full re-render would lose focus
+  const row=document.getElementById('pprev-'+i);
+  if(row){
+    const badges=row.querySelectorAll('.badge');
+    badges.forEach(b=>{if(b.textContent==='Adulto'||b.textContent==='Menor'||b.textContent==='Bebé'){b.className='badge '+bc;b.textContent=bt;}});
+  }
+}
+
+async function confirmar(){
+  const tipo=document.getElementById('pTipo').value;
+  const hostal=document.getElementById('pHostal').value;
+  const fecha=document.getElementById('pFecha').value;
+  const personas=window._prev||[];
+  const traslado=window._traslado||null;
+
+  // VERIFICAR DUPLICADOS EN OTROS HOSTALES antes de guardar
+  if(tipo==='INICIO'){
+    const alertas=[];
+    personas.forEach(p=>{
+      const key=p.nombre.toUpperCase().trim();
+      const enOtroHostal=S.huespedes.find(h=>
+        h.nombre.toUpperCase().trim()===key &&
+        h.hostal!==hostal &&
+        !h.fechaSalida  // solo los que están activos (sin fecha de salida)
+      );
+      if(enOtroHostal){
+        alertas.push(`⚠ ${p.nombre} ya está activo/a en ${enOtroHostal.hostal}`);
+      }
+    });
+    if(alertas.length>0){
+      const msg=alertas.join('\n')+'\n\n¿Es un traslado? Si es así, cancela y usa el tipo "Traslado". Si es un error, cancela y corrige.\n\n¿Continuar igualmente?';
+      if(!confirm(msg))return;
+    }
+  }
+
+  personas.forEach(p=>{
+    const key=p.nombre.toUpperCase().trim();
+    const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
+
+    if(tipo==='TRASLADO'&&traslado){
+      // Calcular día anterior al traslado para el hostal origen
+      const dTraslado=pd(fecha);
+      const dAnterior=new Date(dTraslado.getFullYear(),dTraslado.getMonth(),dTraslado.getDate()-1);
+      const fechaAnterior=fmtISO(dAnterior);
+      // Actualizar entrada existente en hostal origen: poner fecha de salida = día anterior
+      if(ex){
+        ex.fechaSalida=fechaAnterior;
+        ex.picnic=false;
+      }
+      // Crear nueva entrada en hostal destino desde el día del traslado
+      S.huespedes.push({
+        id:Date.now()+Math.random(),
+        nombre:p.nombre,fnac:p.fnac,
+        hostal:traslado.destino||hostal,
+        fechaEntrada:fecha,fechaSalida:'',
+        cabeza:p.cabeza,picnic:false,
+        minDias:p.minDias||0,snackDias:p.snackDias||0
+      });
+    } else if(tipo==='INICIO'){
+      if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
+    } else {
+      if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
+    }
   });
+  window._traslado=null;
+  await guardar();cancelarPrev();
+  document.getElementById('txtCorreo').value='';
+  showMsg('correos',`✓ ${personas.length} huésped(es) registrados correctamente`,'ok');
+}
+function cancelarPrev(){document.getElementById('prevArea').style.display='none';}
+
+async function addManual(){
+  const nombre=document.getElementById('mNombre').value.trim();
+  if(!nombre){showMsg('manual','Introduce el nombre del huésped','err');return;}
+  const hostal=document.getElementById('mHostal').value;
+  const fechaEnt=document.getElementById('mFechaEnt').value;
+  const fechaSal=document.getElementById('mFechaSal').value;
+  const datos={
+    nombre,
+    fnac:document.getElementById('mFnac').value,
+    hostal,
+    cabeza:document.getElementById('mCabeza').value==='si',
+    picnic:document.getElementById('mPicnic').value==='si',
+    minDias:parseInt(document.getElementById('mMin').value)||0,
+    snackDias:parseInt(document.getElementById('mSnack').value)||0,
+    fechaEntrada:fechaEnt,
+    fechaSalida:fechaSal
+  };
+  // Si estamos editando un huésped existente por ID
+  if(window._editandoId){
+    const idx=S.huespedes.findIndex(h=>String(h.id)===String(window._editandoId));
+    if(idx>=0){S.huespedes[idx]={...S.huespedes[idx],...datos};}
+    else{S.huespedes.push({id:window._editandoId,...datos});}
+    window._editandoId=null;
+  } else {
+    const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
+    if(ex){Object.assign(ex,datos);}
+    else{S.huespedes.push({id:Date.now()+Math.random(),...datos});}
+  }
+  await guardar();
+  document.getElementById('mNombre').value='';
+  document.getElementById('mFnac').value='';
+  document.getElementById('mFechaEnt').value='';
+  document.getElementById('mFechaSal').value='';
+  showMsg('manual','✓ Huésped guardado correctamente','ok');
+  cntNav();
+}
+
+function calcDias(h){
+  // Si no hay quincena definida, no calcular
+  if(!S.qIni||!S.qFin)return{dias:0,ini:new Date(),fin:new Date()};
+  const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const qIni=norm(S.qIni);
+  const qFin=norm(S.qFin);
+  // Fecha entrada: si no hay o es anterior a la quincena, usar inicio de quincena
+  let ini=h.fechaEntrada?pd(h.fechaEntrada):null;
+  ini=(!ini||norm(ini)<qIni)?new Date(qIni):norm(ini);
+  // Fecha salida: si no hay o es posterior a la quincena, usar fin de quincena
+  let fin=h.fechaSalida?pd(h.fechaSalida):null;
+  fin=(!fin||norm(fin)>qFin)?new Date(qFin):norm(fin);
+  // Si la salida es antes del inicio de la quincena, 0 dias
+  if(fin<qIni)return{dias:0,ini:qIni,fin:qIni};
+  if(ini>qFin)return{dias:0,ini:qFin,fin:qFin};
+  return{dias:Math.round((fin-ini)/86400000)+1,ini,fin};
+}
+function getTarifas(){
+  return{
+    tar:parseFloat(document.getElementById('cfgTar')?.value||40),
+    pMin:parseFloat(document.getElementById('cfgMin')?.value||4.59),
+    pSnack:parseFloat(document.getElementById('cfgSnack')?.value||2),
+    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||4.67),
+    igicPct:(parseFloat(document.getElementById('cfgIgic')?.value||7))/100
+  };
+}
+function calcImp(h){
+  const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
+  const{dias,ini,fin}=calcDias(h);
+  const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
+  const aloj=bebe?0:dias*tar;
+  // Min Iniciación: siempre manual (h.minDias)
+  const minDiasCalc=h.minDias||0;
+  const minI=minDiasCalc*pMin;
+  // Recalcular snack automáticamente para menores usando festivos actuales
+  let snackDias=h.snackDias||0;
+  if(menor&&!bebe&&ini&&fin){
+    snackDias=calcLectivos(ini,fin);
+  }
+  const snackI=snackDias*pSnack;
+  const picnic=0;
+  const base=Math.round((aloj+minI+snackI)*100)/100;
+  const igic=Math.round(base*igicPct*100)/100;
+  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
+}
+
+function renderH(){
+  const a=document.getElementById('hContent');
+  if(!S.huespedes.length){
+    a.innerHTML='<div class="empty"><div class="empty-icon">◉</div><div class="empty-txt">Sin huéspedes registrados. Empieza pegando un correo de CEAR.</div></div>';return;
+  }
+  const buscar=(document.getElementById('hBuscar')?.value||'').toUpperCase().trim();
+  const hostalFiltro=document.getElementById('hHostal')?.value||'';
+  const filtrados=S.huespedes.filter(h=>{
+    const okNombre=!buscar||h.nombre.toUpperCase().includes(buscar);
+    const okHostal=!hostalFiltro||h.hostal===hostalFiltro;
+    return okNombre&&okHostal;
+  });
+
+  // Detectar personas activas en múltiples hostales
+  const activosPorNombre={};
+  S.huespedes.filter(h=>!h.fechaSalida).forEach(h=>{
+    const k=h.nombre.toUpperCase().trim();
+    if(!activosPorNombre[k])activosPorNombre[k]=[];
+    activosPorNombre[k].push(h.hostal);
+  });
+  const duplicados=new Set(Object.keys(activosPorNombre).filter(k=>activosPorNombre[k].length>1));
+  if(duplicados.size>0){
+    const dupMsg=[...duplicados].map(k=>`${k} (${activosPorNombre[k].join(', ')})`).join('<br>');
+    const dupDiv=document.createElement('div');
+    dupDiv.className='msg msg-warn';
+    dupDiv.style.marginBottom='10px';
+    dupDiv.innerHTML=`⚠ <strong>Personas activas en múltiples hostales:</strong><br>${dupMsg}`;
+    a.parentNode.insertBefore(dupDiv,a);
+  }
+  if(!filtrados.length){a.innerHTML='<div class="empty"><div class="empty-txt">No se encontró ningún huésped con ese nombre.</div></div>';return;}
+  const byH={};filtrados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  document.getElementById('hSub').textContent=`${filtrados.length} huéspedes · ${Object.keys(byH).length} hostales`;
+  a.innerHTML=Object.entries(byH).map(([hostal,hs])=>{
+    const tot=hs.reduce((s,h)=>s+calcImp(h).total,0);
+    return `<div class="hsect">
+      <div class="hhead"><span>${hostal}</span><span class="htotal">${tot.toFixed(2)} €</span></div>
+      <div class="hbody">${hs.map(h=>{
+        const imp=calcImp(h);const t=imp.bebe?'bebe':imp.menor?'menor':'adulto';
+        const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
+        const bt=t==='adulto'?'Adulto':t==='menor'?'Menor':'Bebé';
+        return `<div class="hrow ${h.cabeza?'cab':t==='adulto'?'':t}">
+          <div class="hrow-top">
+            <div>
+              <div class="hrow-name" style="font-weight:${h.cabeza?600:400}">${h.nombre}</div>
+              <div class="hrow-meta">${h.fechaEntrada||'sin entrada'} → ${h.fechaSalida||'quincena completa'} · ${imp.dias} días · ${imp.total.toFixed(2)} €</div>
+            </div>
+            <div class="hrow-acts">
+              <button class="btn btn-sm" onclick="editH('${h.id}')">Editar</button>
+              <button class="btn btn-sm btn-danger" onclick="delH('${h.id}')">×</button>
+            </div>
+          </div>
+          <div class="hrow-badges">
+            <span class="badge ${bc}">${bt}</span>
+            ${h.cabeza?'<span class="badge b-cabeza">Cabeza</span>':''}
+            ${h.picnic?'<span class="badge b-picnic">Picnic</span>':''}
+            ${h.snackDias?`<span class="badge b-snack">Snack ×${h.snackDias}d</span>`:''}
+            ${h.minDias?`<span class="badge b-min">Min ×${h.minDias}d</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  }).join('');
+}
+function delH(id){
+  if(!confirm('¿Eliminar este huésped?'))return;
+  S.huespedes=S.huespedes.filter(h=>String(h.id)!==String(id));
+  guardar();renderH();
+}
+async function editH(id){
+  const h=S.huespedes.find(x=>String(x.id)===String(id));if(!h)return;
+  document.getElementById('mNombre').value=h.nombre;
+  document.getElementById('mFnac').value=h.fnac||'';
+  document.getElementById('mHostal').value=h.hostal;
+  document.getElementById('mFechaEnt').value=h.fechaEntrada||'';
+  document.getElementById('mFechaSal').value=h.fechaSalida||'';
+  document.getElementById('mCabeza').value=h.cabeza?'si':'no';
+  document.getElementById('mPicnic').value=h.picnic?'si':'no';
+  document.getElementById('mMin').value=h.minDias||0;
+  document.getElementById('mSnack').value=h.snackDias||0;
+  // Guardar el ID que se está editando para actualizarlo al guardar
+  window._editandoId=id;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('p-manual').classList.add('on');
+  document.querySelector('[data-page="manual"]').classList.add('active');
+}
+
+async function addFestivo(){
+  const f=document.getElementById('fFecha').value;if(!f)return;
+  if(!S.festivos.includes(f)){S.festivos.push(f);S.festivos.sort();}
+  document.getElementById('fFecha').value='';
+  guardar();renderF();
+}
+async function remF(f){S.festivos=S.festivos.filter(x=>x!==f);await guardar();renderF();}
+function renderF(){
+  const a=document.getElementById('fLista');
+  if(!S.festivos.length){a.innerHTML='<span style="font-size:11px;color:var(--gray)">Sin festivos — añade los días festivos de la quincena</span>';return;}
+  a.innerHTML=S.festivos.map(f=>{
+    const d=pd(f);
+    const txt=d?d.toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'}):f;
+    return `<span class="fpill">${txt}<button onclick="remF('${f}')">×</button></span>`;
+  }).join('');
+}
+
+function renderR(){
+  const a=document.getElementById('rContent');
+  if(!S.huespedes.length){a.innerHTML='<div class="empty"><div class="empty-icon">≡</div><div class="empty-txt">Sin huéspedes registrados.</div></div>';return;}
+  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const{igicPct}=getTarifas();
+  let totB=0,totI=0;
+  S.huespedes.forEach(h=>{const i=calcImp(h);totB+=i.base;totI+=i.igic;});
+  const totT=Math.round((totB+totI)*100)/100;
+  a.innerHTML=`<div class="stats">
+    <div class="stat"><div class="stat-v">${S.huespedes.length}</div><div class="stat-l">Huéspedes</div></div>
+    <div class="stat"><div class="stat-v">${Object.keys(byH).length}</div><div class="stat-l">Hostales</div></div>
+    <div class="stat"><div class="stat-v">${totB.toFixed(0)} €</div><div class="stat-l">Base imponible</div></div>
+    <div class="stat accent"><div class="stat-v">${totT.toFixed(0)} €</div><div class="stat-l">Total con IGIC</div></div>
+  </div>`+Object.entries(byH).map(([hostal,hs])=>{
+    const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
+    const hI=Math.round(hB*igicPct*100)/100;
+    const hT=Math.round((hB+hI)*100)/100;
+    const rows=hs.map(h=>{
+      const i=calcImp(h);const t=i.bebe?'Bebé':i.menor?'Menor':'Adulto';
+      return `<tr>
+        <td style="font-weight:${h.cabeza?500:400}">${h.nombre}</td>
+        <td>${t}</td>
+        <td class="mono">${h.fechaEntrada||'—'}</td>
+        <td class="mono">${h.fechaSalida||'quincena completa'}</td>
+        <td class="right">${i.dias}</td>
+        <td class="right mono">${i.aloj.toFixed(2)} €</td>
+        <td class="right mono">${(i.min+i.snack+i.picnic).toFixed(2)} €</td>
+        <td class="right mono bold">${i.base.toFixed(2)} €</td>
+        <td class="right mono">${i.igic.toFixed(2)} €</td>
+        <td class="right mono bold">${i.total.toFixed(2)} €</td>
+      </tr>`;
+    }).join('');
+    return `<div class="hsect">
+      <div class="hhead"><span>${hostal}</span><span class="htotal">${hT.toFixed(2)} €</span></div>
+      <div class="hbody" style="padding:0"><div class="tbl-wrap">
+        <table class="tbl">
+          <tr><th>Huésped</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th style="text-align:right">Días</th><th style="text-align:right">Aloj.</th><th style="text-align:right">Extras</th><th style="text-align:right">Base</th><th style="text-align:right">IGIC</th><th style="text-align:right">Total</th></tr>
+          ${rows}
+          <tr class="tot-row">
+            <td colspan="7" style="padding:6px 8px">Total ${hostal}</td>
+            <td class="right mono" style="padding:6px 8px">${hB.toFixed(2)} €</td>
+            <td class="right mono" style="padding:6px 8px">${hI.toFixed(2)} €</td>
+            <td class="right mono" style="padding:6px 8px">${hT.toFixed(2)} €</td>
+          </tr>
+        </table>
+      </div></div>
+    </div>`;
+  }).join('');
+}
+
+function verPreview(){
+  if(!S.huespedes.length){document.getElementById('genPreview').innerHTML='<div class="msg msg-warn">Sin huéspedes registrados.</div>';return;}
+  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const{igicPct}=getTarifas();
+  let numFact=parseInt(document.getElementById('cfgNum').value);
+  const anoFact=document.getElementById('cfgAno').value;
+  let totB=0,totI=0,totT=0;
+  const rows=Object.entries(byH).map(([hostal,hs])=>{
+    const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
+    const hI=Math.round(hB*igicPct*100)/100;
+    const hT=Math.round((hB+hI)*100)/100;
+    totB+=hB;totI+=hI;totT+=hT;
+    return `<div class="gen-fact-row">
+      <span><strong>${hostal}</strong> · Fact. ${numFact++}-${anoFact} · ${hs.length} huéspedes</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px">${hB.toFixed(2)} € + IGIC = <strong>${hT.toFixed(2)} €</strong></span>
+    </div>`;
+  }).join('');
+  document.getElementById('genPreview').innerHTML=`<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 14px;background:var(--cream);border-bottom:1px solid var(--gray3);font-size:11px;font-weight:500;color:var(--gray);text-transform:uppercase;letter-spacing:0.07em">Vista previa de facturas</div>
+    ${rows}
+    <div class="gen-total"><span>Total general</span><span>${Math.round(totT*100)/100} €</span></div>
+  </div>`;
+}
+
+async function generarExcel(){
+  if(!S.huespedes.length){document.getElementById('genResult').innerHTML='<div class="msg msg-err">No hay huéspedes registrados.</div>';return;}
+  if(typeof ExcelJS==='undefined'){document.getElementById('genResult').innerHTML='<div class="msg msg-err">La librería Excel aún carga. Espera unos segundos e intenta de nuevo.</div>';return;}
+
+  document.getElementById('genResult').innerHTML='<div class="msg msg-info">⏳ Generando Excel con formato exacto...</div>';
+
+  const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
+  const numBase=parseInt(document.getElementById('cfgNum').value);
+  const anoFact=document.getElementById('cfgAno').value;
+  const email=document.getElementById('cfgEmail')?.value||S.config.email;
+  const tel=document.getElementById('cfgTel')?.value||S.config.tel;
+  // Ordenar por campo orden antes de agrupar
+  const huespedesOrdenados=[...S.huespedes].sort((a,b)=>(a.orden||0)-(b.orden||0));
+  const byH={};huespedesOrdenados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  const per=`${S.qTipo===1?'1Q':'2Q'} (${S.qTipo===1?'01-15':'16-'+dm})`;
+  const mes=MESES[S.qMes].toUpperCase();
+
+  // ExcelJS helpers
+  const wb=new ExcelJS.Workbook();
+  wb.creator='URPI Facturación CEAR';
+
+  const COL_WIDTHS=[14.14,9.14,8.43,6.43,9.14,6,9.86,13.29,11,11,9,9.43,5.14,7.86,5.14,7.86,5.86,6.86,9.57,8.86,13.29];
+  const ROW_H={1:26.25,2:20.1,3:20.1,4:20.1,5:20.1,6:20.1,7:20.1,8:20.1,9:9.95,10:20.1,11:20.1,12:20.1,13:20.1,14:20.1,15:9.95,16:33.95,17:33.95};
+
+  const T={thin:{style:'thin'}};
+  const BF={top:T.thin,bottom:T.thin,left:T.thin,right:T.thin};
+  const BTB={top:T.thin,bottom:T.thin};
+  const BRT={top:T.thin,bottom:T.thin,right:T.thin};
+  const BLB={top:T.thin,bottom:T.thin,left:T.thin};
+
+  function F(bold,size){return{name:'Arial',bold:!!bold,size:size||9};}
+  function AL(h,v,w){return{horizontal:h||'center',vertical:v||'middle',wrapText:!!w};}
+  function EUR(v){return{type:'decimal',decimal:true,format:'#,##0.00 €',value:v};}
+  function PCT(v){return{type:'decimal',format:'0%',value:v};}
+  function fmtD(d){
+    if(!d)return '';
+    const dt=d instanceof Date?d:(typeof d==='string'?new Date(d):null);
+    if(!dt||isNaN(dt))return '';
+    return dt.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }
+
+  // Helper: set cell value + style
+  function sc(ws,r,c,val,bold,size,halign,numFmt,border){
+    const cell=ws.getCell(r,c);
+    if(val!==null&&val!==undefined)cell.value=val;
+    if(bold!==undefined||size!==undefined)cell.font=F(bold,size);
+    if(halign)cell.alignment=AL(halign,'middle');
+    if(numFmt)cell.numFmt=numFmt;
+    if(border)cell.border=border;
+    return cell;
+  }
+
+  // Helper: merge range
+  function mg(ws,r1,c1,r2,c2){
+    try{ws.mergeCells(r1,c1,r2,c2);}catch(e){}
+  }
+
+  // Apply data row borders (exact pattern from original)
+  function applyDataBorders(ws,r){
+    ws.getCell(r,1).border=BF;
+    ws.getCell(r,2).border=BF;
+    for(let c=3;c<=6;c++)ws.getCell(r,c).border=BTB;
+    ws.getCell(r,7).border=BRT;
+    for(let c=8;c<=21;c++)ws.getCell(r,c).border=BF;
+  }
+
+  // Write header block starting at row r, returns first data row
+  function writeHeader(ws,r,hostal,nf,fechaFact,periodo,mesNombre,email,tel){
+    const hi=HOSTALES[hostal];
+
+    // Set row heights
+    Object.entries(ROW_H).forEach(([rn,ht])=>{
+      ws.getRow(r+parseInt(rn)-1).height=ht;
+    });
+
+    // Row 1: hostal name | Factura Nº | número
+    mg(ws,r,1,r,3);
+    sc(ws,r,1,hostal,true,20,'center');
+    mg(ws,r,19,r,20);
+    sc(ws,r,19,'Factura Nº',true,14,'right');
+    sc(ws,r,21,nf,true,14,'center');
+
+    // Row 2: B&B
+    mg(ws,r+1,1,r+1,3);
+    sc(ws,r+1,1,'− B&B −',true,14,'center');
+
+    // Row 4: empresa | Fecha
+    mg(ws,r+3,1,r+3,5);
+    sc(ws,r+3,1,'URPI HOSPEDAJES Y SERVICIOS, S.L.',true,11,'left');
+    sc(ws,r+3,19,'Fecha:',true,11,'left');
+    mg(ws,r+3,20,r+3,21);
+    sc(ws,r+3,20,fechaFact,false,10,'center');
+
+    // Row 5: CIF
+    sc(ws,r+4,1,'CIF',true,11,'left');
+    mg(ws,r+4,2,r+4,3);
+    sc(ws,r+4,2,'B38903746',false,11,'left');
+
+    // Row 6: Dirección | Período
+    sc(ws,r+5,1,'Dirección:',true,11,'left');
+    mg(ws,r+5,2,r+5,8);
+    sc(ws,r+5,2,hi.dir,false,11,'left');
+    sc(ws,r+5,19,'Período:',true,11,'left');
+    mg(ws,r+5,20,r+5,21);
+    sc(ws,r+5,20,periodo,false,12,'center');
+
+    // Row 7: Teléfono
+    sc(ws,r+6,1,'Teléfono:',true,11,'left');
+    mg(ws,r+6,2,r+6,3);
+    sc(ws,r+6,2,tel,false,11,'left');
+
+    // Row 8: Correo | Hostal
+    sc(ws,r+7,1,'Correo:',true,11,'left');
+    mg(ws,r+7,2,r+7,6);
+    sc(ws,r+7,2,email,false,11,'left');
+    sc(ws,r+7,19,'Hostal:',true,11,'left');
+    mg(ws,r+7,20,r+7,21);
+    sc(ws,r+7,20,hi.cod,false,12,'center');
+
+    // Row 10: CLIENTE
+    sc(ws,r+9,1,'CLIENTE',true,11,'left');
+    mg(ws,r+9,2,r+9,8);
+    sc(ws,r+9,2,'COMISIÓN ESPAÑOLA DE AYUDA AL REFUGIADO (CEAR)',true,11,'left');
+
+    // Row 11: CIF
+    sc(ws,r+10,1,'CIF',true,11,'left');
+    mg(ws,r+10,2,r+10,3);
+    sc(ws,r+10,2,'G28651529',false,11,'left');
+
+    // Row 12: Dirección cliente
+    sc(ws,r+11,1,'Dirección:',true,11,'left');
+    mg(ws,r+11,2,r+11,19);
+    sc(ws,r+11,2,'GLORIETA DE CUATRO CAMINOS, 6-7 Planta 7ª - 711 28020, MADRID',false,11,'left');
+
+    // Row 13: Teléfono cliente
+    sc(ws,r+12,1,'Teléfono:',true,11,'left');
+    mg(ws,r+12,2,r+12,3);
+    sc(ws,r+12,2,'00 34 928 297 271',false,11,'left');
+
+    // Row 14: Correo cliente
+    sc(ws,r+13,1,'Correo:',true,11,'left');
+    mg(ws,r+13,2,r+13,5);
+    sc(ws,r+13,2,'administracion.canarias@cear.es',false,11,'left');
+
+    // Row 15: separador completo
+    mg(ws,r+14,1,r+14,21);
+    ws.getRow(r+14).height=9.95;
+
+    // Row 16: mes | FECHAS | tarifas — con bordes exactos
+    const r16=r+15;
+    ws.getRow(r16).height=33.95;
+    sc(ws,r16,1,mesNombre,true,10,'center',null,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    mg(ws,r16,2,r16,7);
+    ws.getCell(r16,2).border={left:T.thin,bottom:T.thin};
+    ws.getCell(r16,3).border={bottom:T.thin};ws.getCell(r16,4).border={bottom:T.thin};
+    ws.getCell(r16,5).border={bottom:T.thin};ws.getCell(r16,6).border={bottom:T.thin};
+    ws.getCell(r16,7).border={bottom:T.thin};ws.getCell(r16,8).border={right:T.thin,bottom:T.thin};
+    mg(ws,r16,9,r16,10);
+    sc(ws,r16,9,'FECHAS',true,10,'center',null,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    ws.getCell(r16,10).border={right:T.thin,top:T.thin,bottom:T.thin};
+    sc(ws,r16,11,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,12,tar,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,13,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,14,pMin,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,15,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,16,pSnack,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,17,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,18,pPicnic,true,10,'center','#,##0.00 €',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,19,null,null,null,null,null,{left:T.thin,right:T.thin,bottom:T.thin});
+    sc(ws,r16,20,igicPct,true,10,'center','0%',{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin});
+    sc(ws,r16,21,null,null,null,null,null,{left:T.thin,bottom:T.thin});
+
+    // Row 17: table header — with exact border pattern
+    const r17=r+16;
+    ws.getRow(r17).height=33.95;
+    const hdrs=[
+      [1,1,'Nº',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [2,7,'USUARIO (A) ALOJADO',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [8,8,'ESPECIFICAR',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [9,9,'DESDE',10,{left:T.thin,top:T.thin,bottom:T.thin}],
+      [10,10,'HASTA',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [11,11,'DIAS ESTANCIA',8,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [12,12,'AL+M+Lav',9,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [13,13,'Cant.',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [14,14,'Min',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [15,15,'Cant.',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [16,16,'Snack',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [17,17,'Cant.',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [18,18,'Picnic',9,{left:T.thin,right:T.thin,top:T.thin}],
+      [19,19,'Importe sin IGIC',10,{left:T.thin,right:T.thin,top:T.thin}],
+      [20,20,'IGIC',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+      [21,21,'Importe con IGIC',10,{left:T.thin,right:T.thin,top:T.thin,bottom:T.thin}],
+    ];
+    hdrs.forEach(([cs,ce,txt,sz,brd])=>{
+      if(cs!==ce)mg(ws,r17,cs,r17,ce);
+      const cell=ws.getCell(r17,cs);
+      cell.value=txt;cell.font=F(true,sz);
+      cell.alignment=AL('center','middle',true);
+      cell.border=brd;
+    });
+
+    return r17+1;
+  }
+
+  // Write a data row
+  function writeDataRow(ws,r,num,h,imp,bold){
+    ws.getRow(r).height=20.1;
+    const tipo=imp.bebe||imp.menor?'Menor':'Adulto';
+    const fSz=9;
+
+    function wc(c,val,halign,numFmt){
+      const cell=ws.getCell(r,c);
+      if(val!==null&&val!==undefined)cell.value=val;
+      cell.font=F(bold,c===1?10:fSz);
+      cell.alignment=AL(halign||'center','middle');
+      if(numFmt)cell.numFmt=numFmt;
+    }
+
+    wc(1,num,'center');
+    mg(ws,r,2,r,7);
+    wc(2,h.nombre,'left');
+    wc(8,tipo,'center');
+    wc(9,fmtD(imp.ini),'center');
+    wc(10,fmtD(imp.fin),'center');
+    wc(11,imp.dias,'center');
+    wc(12,imp.aloj,'center','#,##0.00 €');
+    if(imp.minDias){wc(13,imp.minDias,'center');wc(14,Math.round(imp.minDias*pMin*100)/100,'center','#,##0.00 €');}
+    if(imp.snackDias){wc(15,imp.snackDias,'center');wc(16,Math.round(imp.snackDias*pSnack*100)/100,'center','#,##0.00 €');}
+    wc(19,imp.base,'center','#,##0.00 €');
+    wc(20,imp.igic,'center','#,##0.00 €');
+    wc(21,imp.total,'center','#,##0.00 €');
+    applyDataBorders(ws,r);
+  }
+
+  // Write picnic row (0 days aloj, only picnic)
+  function writePicnicRow(ws,r,num,h,imp,bold){
+    ws.getRow(r).height=20.1;
+    const tipo=imp.bebe||imp.menor?'Menor':'Adulto';
+    const pb=Math.round(pPicnic*100)/100,pi=Math.round(pPicnic*igicPct*100)/100,pt=Math.round((pb+pi)*100)/100;
+
+    function wc(c,val,halign,numFmt){
+      const cell=ws.getCell(r,c);
+      if(val!==null&&val!==undefined)cell.value=val;
+      cell.font=F(bold,c===1?10:9);
+      cell.alignment=AL(halign||'center','middle');
+      if(numFmt)cell.numFmt=numFmt;
+    }
+
+    wc(1,num,'center');mg(ws,r,2,r,7);wc(2,h.nombre,'left');
+    wc(8,tipo,'center');wc(9,fmtD(imp.fin),'center');wc(10,fmtD(imp.fin),'center');
+    wc(11,0,'center');wc(12,0,'center','#,##0.00 €');
+    wc(17,1,'center');wc(18,pb,'center','#,##0.00 €');
+    wc(19,pb,'center','#,##0.00 €');wc(20,pi,'center','#,##0.00 €');wc(21,pt,'center','#,##0.00 €');
+    applyDataBorders(ws,r);
+    return pb;
+  }
+
+  // Write totals section
+  function writeTotals(ws,r,baseTot){
+    const igicT=Math.round(baseTot*igicPct*100)/100;
+    const totT=Math.round((baseTot+igicT)*100)/100;
+    ws.getRow(r).height=9.95;
+
+    // Helper: apply full border box to a range of cells in a row
+    function borderBox(row,cFrom,cTo){
+      for(let c=cFrom;c<=cTo;c++){
+        const cell=ws.getCell(row,c);
+        cell.border={
+          top:T.thin, bottom:T.thin,
+          left: c===cFrom?T.thin:undefined,
+          right: c===cTo?T.thin:undefined
+        };
+      }
+    }
+
+    // Helper: borde completo sin merge — celda por celda
+    function filaBorde(row,cFrom,cTo,texto,negrita,size){
+      for(let c=cFrom;c<=cTo;c++){
+        const cell=ws.getCell(row,c);
+        if(c===cFrom&&texto){cell.value=texto;cell.font=F(negrita,size);cell.alignment={horizontal:'left',vertical:'middle'};}
+        cell.border={
+          top:{style:'thin'},bottom:{style:'thin'},
+          left:c===cFrom?{style:'thin'}:null,
+          right:c===cTo?{style:'thin'}:null
+        };
+      }
+    }
+
+    // ROW r+1: BASE IMPONIBLE
+    const r1=r+1; ws.getRow(r1).height=20.1;
+    sc(ws,r1,1,'PAGO',true,12,'left');
+    mg(ws,r1,2,r1,6); sc(ws,r1,2,'TRANSFERENCIA',true,12,'left');
+    filaBorde(r1,12,20,'BASE IMPONIBLE',true,12);
+    sc(ws,r1,21,Math.round(baseTot*100)/100,true,12,'right','#,##0.00 €',BF);
+
+    // ROW r+2: IGIC
+    const r2=r+2; ws.getRow(r2).height=20.1;
+    filaBorde(r2,12,19,'IGIC',true,12);
+    sc(ws,r2,20,igicPct,true,12,'center','0%',BF);
+    sc(ws,r2,21,igicT,true,12,'right','#,##0.00 €',BF);
+
+    // ROW r+3: ENTIDAD / BANCO DE SABADELL
+    const r3=r+3; ws.getRow(r3).height=20.1;
+    sc(ws,r3,1,'ENTIDAD',true,12,'left');
+    mg(ws,r3,2,r3,6); sc(ws,r3,2,'BANCO DE SABADELL',true,12,'left');
+
+    // ROW r+4: TOTAL FACTURA
+    const r4=r+4; ws.getRow(r4).height=20.1;
+    sc(ws,r4,1,'Nº CUENTA',true,12,'left');
+    mg(ws,r4,2,r4,6); sc(ws,r4,2,'ES60 0081 0369 01 0001445552',true,12,'left');
+    filaBorde(r4,12,20,'TOTAL FACTURA',true,12);
+    sc(ws,r4,21,totT,true,12,'right','#,##0.00 €',BF);
+  }
+
+  // BUILD WORKBOOK
+  let numFact=numBase;
+  for(const [hostal,hs] of Object.entries(byH)){
+    const ws=wb.addWorksheet(hostal.substring(0,31));
+    COL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+    const nf=`${numFact}-${anoFact}`;
+    let cur=writeHeader(ws,1,hostal,nf,fmt(S.qFin),per,mes,email,tel);
+    let baseTot=0;let num=1;
+    const ROWS_PER_PAGE=14;
+    let rowsEnPagina=0; // contador de filas de datos en la página actual
+
+    for(const h of hs){
+      const{dias,ini,fin}=calcDias(h);
+      const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
+      const aloj=bebe?0:dias*tar;
+      // Min Iniciación: siempre manual
+      const minDiasCalc=h.minDias||0;
+      const minI=minDiasCalc*pMin;
+      // Recalcular snack con festivos actuales para menores
+      const snackDiasCalc=menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0);
+      const snackI=snackDiasCalc*pSnack;
+      const base=Math.round((aloj+minI+snackI)*100)/100;
+      const igic=Math.round(base*igicPct*100)/100;
+      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:minDiasCalc,snackDias:snackDiasCalc};
+
+      // Calcular cuántas filas ocupará este huésped (1 normal + 1 picnic si tiene)
+      const filasNecesarias=h.picnic?2:1;
+
+      // Si no caben en la página actual, añadir salto de página y nueva cabecera
+      if(num>1&&rowsEnPagina+filasNecesarias>ROWS_PER_PAGE){
+        // Salto de página explícito ANTES de la cabecera
+        ws.getRow(cur).height=9.95;
+        ws.addPageBreaks=ws.addPageBreaks||[];
+        const breakRow=cur;
+        cur++;
+        cur=writeHeader(ws,cur,hostal,nf,fmt(S.qFin),per,mes,email,tel);
+        // Añadir salto de página en la fila vacía antes de la cabecera
+        ws.getRow(breakRow).addPageBreak=true;
+        try{ws.rowBreaks.push({id:breakRow,man:true});}catch(e){}
+        rowsEnPagina=0;
+      }
+
+      writeDataRow(ws,cur,num,h,imp,h.cabeza||false);
+      baseTot+=base;cur++;
+      rowsEnPagina++;
+
+      if(h.picnic){
+        baseTot+=writePicnicRow(ws,cur,num,h,imp,h.cabeza||false);
+        cur++;
+        rowsEnPagina++;
+      }
+      num++;
+    }
+    writeTotals(ws,cur,Math.round(baseTot*100)/100);
+
+    // Configuración de impresión — sintaxis exacta ExcelJS
+    ws.pageSetup.paperSize=9;
+    ws.pageSetup.orientation='landscape';
+    ws.pageSetup.fitToPage=true;
+    ws.pageSetup.fitToWidth=1;
+    ws.pageSetup.fitToHeight=0;
+    ws.pageSetup.margins={
+      left:0.315,right:0.315,
+      top:0.433,bottom:0.748,
+      header:0.315,footer:0.315
+    };
+    ws.views=[{showGridLines:false}];
+
+    numFact++;
+  }
+
+  // Save
+  try{
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const fname=`Facturas_CEAR_${per.replace(/[()\/\s]/g,'')}_${mes}_${S.qAno}.xlsx`;
+    saveAs(blob,fname);
+    document.getElementById('genResult').innerHTML=`<div class="msg msg-ok">✓ Excel generado con formato exacto: <strong>${fname}</strong> · ${Object.keys(byH).length} hojas · ${S.huespedes.length} huéspedes</div>`;
+  }catch(e){
+    document.getElementById('genResult').innerHTML=`<div class="msg msg-err">Error al generar: ${e.message}</div>`;
+  }
+}
+
+function guardarConfig(){
+  S.config.email=document.getElementById('cfgEmail').value;
+  S.config.tel=document.getElementById('cfgTel').value;
+  guardar();
+  alert('✓ Configuración guardada');
+}
+function renderConfig(){actualizarUI();}
+async function limpiarQuincena(){
+  if(!confirm(`¿Eliminar todos los huéspedes y festivos?`))return;
+  S.huespedes=[];S.festivos=[];
+  await guardar();renderH();renderF();
+  alert('✓ Datos eliminados');
+}
+function exportarJSON(){
+  const blob=new Blob([JSON.stringify({quincena:{tipo:S.qTipo,mes:S.qMes,ano:S.qAno},huespedes:S.huespedes,festivos:S.festivos},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`urpi_${storKey()}.json`;a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// ============================================================
+// IMPORTAR FACTURAS EXCEL ANTERIORES
+// ============================================================
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('dropZone').style.borderColor='var(--gray3)';
+  importarExcels(e.dataTransfer.files);
+}
+
+async function importarExcels(files){
+  if(!files||!files.length)return;
+  if(typeof ExcelJS==='undefined'){
+    document.getElementById('importResult').innerHTML='<div class="msg msg-err">La librería Excel aún carga. Espera unos segundos e intenta de nuevo.</div>';
+    return;
+  }
+  document.getElementById('importResult').innerHTML='<div class="msg msg-info">⏳ Leyendo facturas CEAR...</div>';
+
+  // Si el checkbox está marcado, limpiar huéspedes de la quincena actual
+  const limpiar=document.getElementById('chkLimpiar')?.checked!==false;
+  if(limpiar){
+    S.huespedes=[];
+    guardar();
+    actualizarUI();
+  }
+
+  let totalImportados=0;
+  let hostalResults=[];
+
+  // Palabras que indican fila de totales — no son huéspedes
+  const SKIP_WORDS=['PAGO','BASE IMPONIBLE','IGIC','TOTAL FACTURA','ENTIDAD','Nº CUENTA',
+    'TRANSFERENCIA','BANCO','CUENTA','USUARIO','ESPECIFICAR','AL+M','FECHAS',
+    'DESDE','HASTA','DIAS','MARZO','ABRIL','ENERO','FEBRERO','MAYO','JUNIO',
+    'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+  function esFilaTotal(nombre){
+    if(!nombre)return true;
+    const n=String(nombre).trim().toUpperCase();
+    if(n.length<3)return true;
+    if(/^[0-9,.\s€%]+$/.test(n))return true;
+    return SKIP_WORDS.some(w=>n.startsWith(w)||n===w);
+  }
+
+  function detectarHostalDeNombre(nombre){
+    const n=String(nombre||'').toUpperCase();
+    if(n.includes('HOSTER')||n.includes('HOSTERÍA'))return 'La Hostería';
+    if(n.includes('MOLINA'))return 'La Molina';
+    if(n.includes('MILEMA'))return 'Milema';
+    if(n.includes('MENCEY'))return 'Mencey';
+    if(n.includes('LIMA'))return 'Casa Lima';
+    if(n.includes('CRISTINA')||n.includes('MARIA C')||n.includes('MARÍA C'))return 'María Cristina';
+    return null;
+  }
+
+  function parseExcelDate(v){
+    if(!v)return '';
+    if(v instanceof Date)return fmtISO(v);
+    if(typeof v==='string'){const d=pd(v);return d?fmtISO(d):'';}
+    if(typeof v==='number'){
+      // Excel serial date
+      const d=new Date((v-25569)*86400*1000);
+      return fmtISO(d);
+    }
+    return '';
+  }
+
+  for(const file of files){
+    try{
+      const buf=await file.arrayBuffer();
+      const wb=new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+
+      // Procesar solo hojas CEAR
+      const todasCear=wb.worksheets.filter(ws=>ws.name.toLowerCase().includes('cear'));
+      if(!todasCear.length){
+        hostalResults.push({hostal:'—',archivo:file.name,importados:0,error:'No se encontraron hojas CEAR en este archivo'});
+        continue;
+      }
+
+      // Detectar la fecha más reciente entre todas las hojas CEAR (celda T4)
+      let fechaMaxISO='';
+      todasCear.forEach(ws=>{
+        const v=ws.getCell(4,20).value; // T4 = fecha de la factura
+        if(v){
+          const iso=parseExcelDate(v);
+          if(iso>fechaMaxISO)fechaMaxISO=iso;
+        }
+      });
+
+      // Solo importar las hojas con esa fecha máxima (la quincena más reciente)
+      const hojasACear=fechaMaxISO
+        ? todasCear.filter(ws=>{
+            const v=ws.getCell(4,20).value;
+            return v&&parseExcelDate(v)===fechaMaxISO;
+          })
+        : todasCear;
+
+      // Snapshot de nombres ANTES de importar este archivo (para no deduplicar entre hojas)
+      const nombresPreexistentes=new Set(S.huespedes.map(h=>h.nombre.toUpperCase().trim()));
+      // Durante la importacion, rastreamos los que ya añadimos en ESTE archivo
+      const nombresEnEsteArchivo=new Set();
+
+      for(const ws of hojasACear){
+        // Detectar hostal desde A1 o nombre de hoja
+        let hostal=detectarHostalDeNombre(ws.getCell(1,1).value)||detectarHostalDeNombre(ws.name)||'Milema';
+        let imported=0;
+        let numAnterior=null;
+
+        ws.eachRow((row,rn)=>{
+          // Una fila es de DATOS si y solo si:
+          // - Col A es un número entero (el nº de orden del huésped)
+          // - Col H dice exactamente 'Adulto' o 'Menor'
+          // Todo lo demás es cabecera, pie, o fila de picnic
+          const numVal=row.getCell(1).value;
+          const tipo=String(row.getCell(8).value||'').trim();
+
+          const numInt=parseInt(numVal);
+          if(isNaN(numInt)||numInt<=0)return;
+          if(tipo!=='Adulto'&&tipo!=='Menor')return;
+
+          const nombre=String(row.getCell(2).value||'').trim();
+          if(!nombre||nombre.length<3)return;
+
+          const hastaRaw=row.getCell(10).value;
+          const dias=parseInt(row.getCell(11).value)||0;
+          const snackCant=parseInt(row.getCell(15).value)||0;
+          const minCant=parseInt(row.getCell(13).value)||0;
+          const picnicCant=parseInt(row.getCell(17).value)||0;
+
+          // Skip filas de picnic (días=0 con picnic)
+          if(dias===0&&picnicCant>0)return;
+
+          // Fecha de salida de la factura importada
+          const hastaISO=parseExcelDate(hastaRaw);
+
+          // Evitar duplicados: no importar si ya existía ANTES de este archivo
+          // Pero sí permitir la misma persona en distintas hojas (se actualiza el hostal)
+          const key=nombre.toUpperCase().trim();
+          if(nombresPreexistentes.has(key))return;
+          // Si ya aparece en este archivo (otra hoja), actualizar hostal y saltar
+          if(nombresEnEsteArchivo.has(key)){
+            const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
+            // No duplicar, la persona ya está registrada desde otra hoja
+            return;
+          }
+          nombresEnEsteArchivo.add(key);
+
+          // Verificar que el huesped estaba al FINAL de la quincena importada
+          // Si su fecha de salida es antes del fin de la quincena, no importar
+          const hastaRawChk=row.getCell(10).value;
+          if(hastaRawChk){
+            const hastaISOChk=parseExcelDate(hastaRawChk);
+            const fechaFactRaw=ws.getCell(4,20).value;
+            const fechaFactISO=fechaFactRaw?parseExcelDate(fechaFactRaw):'';
+            if(hastaISOChk&&fechaFactISO&&hastaISOChk<fechaFactISO)return;
+          }
+
+          // Leer negrita de col B para determinar si es cabeza de familia
+          const celdaNombre=row.getCell(2);
+          const esCabeza=celdaNombre.font&&celdaNombre.font.bold===true;
+
+          // Determinar tipo desde col H del Excel
+          const tipoExcel=tipo==='Menor'?'menor':tipo==='Adulto'?'adulto':'adulto';
+          // Detectar bebé: si el importe de alojamiento es 0 y es Menor
+          const alojVal=row.getCell(12).value;
+          const esBebe=tipo==='Menor'&&(alojVal===0||alojVal==='0'||alojVal===null||alojVal==='');
+          const tipoFinal=esBebe?'bebe':tipoExcel;
+          S.huespedes.push({
+            id:Date.now()+Math.random(),
+            nombre,
+            fnac:'',
+            hostal,
+            fechaEntrada:fmtISO(S.qIni),
+            fechaSalida:'',
+            cabeza:esCabeza,
+            picnic:false,
+            minDias:minCant||0,
+            snackDias:snackCant||0,
+            importado:true,
+            tipoManual:tipoFinal
+          });
+          imported++;
+          totalImportados++;
+        });
+
+        hostalResults.push({hostal,archivo:ws.name,importados:imported});
+      }
+    }catch(e){
+      hostalResults.push({hostal:'?',archivo:file.name,importados:0,error:e.message});
+    }
+  }
+
+  await guardar();
+  actualizarUI();
+
+  const rows=hostalResults.map(r=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--gray3);font-size:12px">
+      <span><strong>${r.hostal}</strong> · <span style="color:var(--gray);font-size:11px">${r.archivo}</span></span>
+      <span style="font-family:'JetBrains Mono',monospace">${r.error
+        ?'<span style="color:var(--red)">'+r.error+'</span>'
+        :'<span style="color:var(--green)">'+r.importados+' huéspedes</span>'}</span>
+    </div>`
+  ).join('');
+
+  document.getElementById('importResult').innerHTML=`
+    <div class="card" style="padding:0;overflow:hidden;margin-top:14px">
+      <div style="padding:10px 12px;background:var(--cream);border-bottom:1px solid var(--gray3);font-size:11px;font-weight:500;color:var(--gray);text-transform:uppercase;letter-spacing:0.07em">Resultado por hoja</div>
+      ${rows}
+      <div style="padding:10px 12px;background:var(--navy);color:#fff;font-size:12px;font-weight:500">
+        Total importados: <span style="color:var(--orange2);font-family:'JetBrains Mono',monospace">${totalImportados} huéspedes en ${hostalResults.filter(r=>!r.error).length} hostales</span>
+      </div>
+    </div>
+    <div class="msg msg-ok" style="margin-top:10px">✓ Importación completada. Ve a "Huéspedes" para revisar. Ajusta las fechas de nacimiento o snack donde sea necesario.</div>`;
+}
+
+// ============================================================
+// CERRAR QUINCENA Y PASAR A LA SIGUIENTE
+// ============================================================
+async function renderCerrar(){
+  const dm=new Date(S.qAno,S.qMes,0).getDate();
+  const qFinStr=S.qTipo===1?'15':String(dm);
+  const mesNom=MESES[S.qMes];
+
+  // Calcular siguiente quincena
+  let nTipo,nMes,nAno;
+  if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
+  else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
+  const nDm=new Date(nAno,nMes,0).getDate();
+  const nFin=nTipo===1?'15':String(nDm);
+
+  // Clasificar huéspedes
+  const continuan=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return true;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal>=S.qFin;
+  });
+  const salen=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return false;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal<S.qFin;
+  });
+  const salenHoy=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return false;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal.getTime()===S.qFin.getTime();
+  });
+
+  document.getElementById('cerrarResumen').innerHTML=`
+    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="stat-v">${S.huespedes.length}</div><div class="stat-l">Total huéspedes</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--green)">${continuan.length}</div><div class="stat-l">Continúan</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--red)">${salen.length+salenHoy.length}</div><div class="stat-l">Se van esta quincena</div></div>
+    </div>
+    ${continuan.length?`<div style="margin-top:8px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:6px;font-weight:500">Pasan a la siguiente quincena:</div>
+      ${continuan.map(h=>`<span style="display:inline-block;background:var(--cream);border:1px solid var(--gray3);border-radius:20px;padding:2px 10px;font-size:11px;margin:2px">${h.nombre}</span>`).join('')}
+    </div>`:''}`;
+
+  document.getElementById('cerrarSiguiente').innerHTML=`
+    <div class="msg msg-info">
+      La siguiente quincena será: <strong>${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}</strong>
+      (${nTipo===1?'01':16}-${nFin})
+      <br><br>
+      <strong>${continuan.length}</strong> huéspedes pasarán automáticamente con fecha de entrada = primer día de la nueva quincena.
+      Los festivos se resetearán — recuerda añadir los de la nueva quincena si los hay.
+    </div>`;
+}
+
+async function cerrarQuincena(){
+  let nTipo,nMes,nAno;
+  if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
+  else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
+
+  // Con la nueva arquitectura los huespedes son globales
+  // Solo necesitamos:
+  // 1. Quitar fecha de salida a los que continuarán (los que salieron en esta quincena se quedan con su fecha)
+  // 2. Actualizar fecha de entrada de los que continúan al inicio de la nueva quincena
+  // 3. Resetear snack y picnic para la nueva quincena
+  // 4. Cambiar a la nueva quincena
+
+  const nIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
+  const nIniStr=fmtISO(nIni);
+
+  const continuan=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return true;
+    const sal=pd(h.fechaSalida);
+    return !sal||sal>=S.qFin;
+  });
+  const salen=S.huespedes.filter(h=>{
+    if(!h.fechaSalida)return false;
+    const sal=pd(h.fechaSalida);
+    return sal&&sal<S.qFin;
+  });
+
+  if(!confirm(`¿Cerrar quincena? ${continuan.length} huéspedes continuarán en la siguiente. ${salen.length} se van.`))return;
+
+  // Preparar huéspedes para la nueva quincena
+  const nuevosH=continuan.map(h=>({
+    ...h,
+    id:Date.now()+Math.random(),
+    fechaEntrada:nIniStr,
+    fechaSalida:'',
+    picnic:false,
+    snackDias:0,
+    quincena:`${nAno}_${nMes}_${nTipo}`
+  }));
+
+  // Cambiar estado a nueva quincena ANTES de guardar
+  S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
+  const dm2=new Date(nAno,nMes,0).getDate();
+  S.qIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
+  S.qFin=nTipo===1?new Date(nAno,nMes-1,15):new Date(nAno,nMes-1,dm2);
+  document.getElementById('sQ').value=nTipo;
+  document.getElementById('sM').value=nMes;
+  document.getElementById('sA').value=nAno;
+  document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+
+  // Asignar los nuevos huéspedes y guardar en la nueva quincena
+  S.huespedes=nuevosH;
+  S.festivos=[];
+  await guardar();
+
+  actualizarUI();
+  const msg=`✓ ${continuan.length} huéspedes traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}.`;
+  showMsg('cerrar',msg,'ok');
+  renderCerrar();
+}
+
+// AUTO-DETECTAR MES ACTUAL
+(function(){
+  const now=new Date();
+  const mes=now.getMonth()+1;
+  const ano=now.getFullYear();
+  const q=now.getDate()<=15?1:2;
+  document.getElementById('sM').value=mes;
+  document.getElementById('sA').value=ano;
+  document.getElementById('sQ').value=q;
+})();
+
+// Iniciar — Firebase REST API no necesita esperar módulo
+window._urpiInit=function(){cambiarQ().catch(console.error);};
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',()=>window._urpiInit());
+}else{
+  window._urpiInit();
 }
 </script>
 </body>
