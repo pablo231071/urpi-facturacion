@@ -687,6 +687,7 @@ function nav(btn){
   if(id==='resumen')renderR();
   if(id==='festivos')renderF();
   if(id==='config')renderConfig();
+  if(id==='cerrar')renderCerrar();
 }
 
 function showMsg(pid,txt,tipo){
@@ -1928,6 +1929,8 @@ async function limpiarQuincena(){
   await guardar();renderH();renderF();
   alert('✓ Datos eliminados');
 }
+function storKey(){return `${S.qTipo}_${S.qMes}_${S.qAno}`;}
+function cntNav(){document.getElementById('nCnt').textContent=S.huespedes.length;}
 function exportarJSON(){
   const blob=new Blob([JSON.stringify({quincena:{tipo:S.qTipo,mes:S.qMes,ano:S.qAno},huespedes:S.huespedes,festivos:S.festivos},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
