@@ -519,24 +519,34 @@ async function guardar(){
   try{
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
-    // Borrar solo los de la quincena actual
+
+    // 1. Leer IDs existentes en esta quincena
     const getRes=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
     const getData=await getRes.json();
     const docsExist=(getData.documents||[]).filter(d=>
       (d.fields?.quincena?.stringValue||'')=== qKey()
     );
-    for(const d of docsExist){
+    const idsExist=new Set(docsExist.map(d=>d.fields?.id?.stringValue||d.name.split('/').pop()));
+    const idsActuales=new Set(S.huespedes.map(h=>String(h.id)));
+
+    // 2. Borrar solo los que ya no están en la lista actual
+    const aBorrar=docsExist.filter(d=>{
+      const id=d.fields?.id?.stringValue||d.name.split('/').pop();
+      return !idsActuales.has(id);
+    });
+    for(const d of aBorrar){
       const docId=d.name.split('/').pop();
       await fetch(`${API}/huespedes/${docId}?key=${FB_KEY}`,{method:'DELETE'});
     }
-    // Insertar los actuales con campo quincena
-    for(let idx=0;idx<S.huespedes.length;idx++){
-      const h=S.huespedes[idx];
-      const id=String(h.id);
-      await fetch(`${API}/huespedes?documentId=${encodeURIComponent(id)}&key=${FB_KEY}`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({fields:{
+
+    // 3. PATCH los existentes, POST los nuevos — en lotes de 10 para no saturar
+    const BATCH=10;
+    for(let i=0;i<S.huespedes.length;i+=BATCH){
+      const lote=S.huespedes.slice(i,i+BATCH);
+      await Promise.all(lote.map(async(h,li)=>{
+        const idx=i+li;
+        const id=String(h.id);
+        const fields={
           id:{stringValue:id},
           nombre:{stringValue:h.nombre||''},
           fnac:{stringValue:h.fnac||''},
@@ -552,8 +562,24 @@ async function guardar(){
           tipo_manual:{stringValue:h.tipoManual||''},
           sin_snack:{booleanValue:!!h.sinSnack},
           quincena:{stringValue:qKey()}
-        }})
-      });
+        };
+        if(idsExist.has(id)){
+          // PATCH — actualizar existente
+          const mask=Object.keys(fields).map(k=>`updateMask.fieldPaths=${k}`).join('&');
+          await fetch(`${API}/huespedes/${encodeURIComponent(id)}?${mask}&key=${FB_KEY}`,{
+            method:'PATCH',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({fields})
+          });
+        } else {
+          // POST — insertar nuevo
+          await fetch(`${API}/huespedes?documentId=${encodeURIComponent(id)}&key=${FB_KEY}`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({fields})
+          });
+        }
+      }));
     }
   }catch(e){console.error('Error guardando:',e);}
   actualizarUI();
