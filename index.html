@@ -6,7 +6,20 @@
 <title>URPI · Facturación CEAR</title>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<!-- Firebase via REST API directa -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig={
+  apiKey:"AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc",
+  authDomain:"urpi-facturacion.firebaseapp.com",
+  projectId:"urpi-facturacion",
+  storageBucket:"urpi-facturacion.firebasestorage.app",
+  messagingSenderId:"993808083661",
+  appId:"1:993808083661:web:d7d33d5106fa296794d784"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -503,10 +516,7 @@ const HOSTALES={
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
-// Firebase config (via window globals inyectados por módulo ES)
-const PROJECT='urpi-facturacion';
-const API=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
-const FB_KEY='AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc';
+// Firebase SDK compat — db disponible globalmente
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
@@ -520,66 +530,48 @@ async function guardar(){
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
 
+    const col=db.collection('huespedes');
+    const q=qKey();
+
     // 1. Leer IDs existentes en esta quincena
-    const getRes=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
-    const getData=await getRes.json();
-    const docsExist=(getData.documents||[]).filter(d=>
-      (d.fields?.quincena?.stringValue||'')=== qKey()
-    );
-    const idsExist=new Set(docsExist.map(d=>d.fields?.id?.stringValue||d.name.split('/').pop()));
+    const snap=await col.where('quincena','==',q).get();
+    const idsExist=new Set(snap.docs.map(d=>d.id));
     const idsActuales=new Set(S.huespedes.map(h=>String(h.id)));
 
-    // 2. Borrar solo los que ya no están en la lista actual
-    const aBorrar=docsExist.filter(d=>{
-      const id=d.fields?.id?.stringValue||d.name.split('/').pop();
-      return !idsActuales.has(id);
-    });
-    for(const d of aBorrar){
-      const docId=d.name.split('/').pop();
-      await fetch(`${API}/huespedes/${docId}?key=${FB_KEY}`,{method:'DELETE'});
-    }
+    // 2. Borrar los que ya no están
+    const borrarPromises=snap.docs
+      .filter(d=>!idsActuales.has(d.id))
+      .map(d=>col.doc(d.id).delete());
+    await Promise.all(borrarPromises);
 
-    // 3. PATCH los existentes, POST los nuevos — en lotes de 10 para no saturar
-    const BATCH=10;
-    for(let i=0;i<S.huespedes.length;i+=BATCH){
-      const lote=S.huespedes.slice(i,i+BATCH);
-      await Promise.all(lote.map(async(h,li)=>{
+    // 3. Usar batch writes de Firestore (máx 500 ops por batch)
+    const BATCH_SIZE=400;
+    for(let i=0;i<S.huespedes.length;i+=BATCH_SIZE){
+      const batch=db.batch();
+      const lote=S.huespedes.slice(i,i+BATCH_SIZE);
+      lote.forEach((h,li)=>{
         const idx=i+li;
         const id=String(h.id);
-        const fields={
-          id:{stringValue:id},
-          nombre:{stringValue:h.nombre||''},
-          fnac:{stringValue:h.fnac||''},
-          hostal:{stringValue:h.hostal||''},
-          fecha_entrada:{stringValue:h.fechaEntrada||''},
-          fecha_salida:{stringValue:h.fechaSalida||''},
-          cabeza:{booleanValue:!!h.cabeza},
-          picnic:{booleanValue:!!h.picnic},
-          min_dias:{integerValue:h.minDias||0},
-          snack_dias:{integerValue:h.snackDias||0},
-          importado:{booleanValue:!!h.importado},
-          orden:{integerValue:idx},
-          tipo_manual:{stringValue:h.tipoManual||''},
-          sin_snack:{booleanValue:!!h.sinSnack},
-          quincena:{stringValue:qKey()}
-        };
-        if(idsExist.has(id)){
-          // PATCH — actualizar existente
-          const mask=Object.keys(fields).map(k=>`updateMask.fieldPaths=${k}`).join('&');
-          await fetch(`${API}/huespedes/${encodeURIComponent(id)}?${mask}&key=${FB_KEY}`,{
-            method:'PATCH',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fields})
-          });
-        } else {
-          // POST — insertar nuevo
-          await fetch(`${API}/huespedes?documentId=${encodeURIComponent(id)}&key=${FB_KEY}`,{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fields})
-          });
-        }
-      }));
+        const ref=col.doc(id);
+        batch.set(ref,{
+          id,
+          nombre:h.nombre||'',
+          fnac:h.fnac||'',
+          hostal:h.hostal||'',
+          fecha_entrada:h.fechaEntrada||'',
+          fecha_salida:h.fechaSalida||'',
+          cabeza:!!h.cabeza,
+          picnic:!!h.picnic,
+          min_dias:h.minDias||0,
+          snack_dias:h.snackDias||0,
+          importado:!!h.importado,
+          orden:idx,
+          tipo_manual:h.tipoManual||'',
+          sin_snack:!!h.sinSnack,
+          quincena:q
+        });
+      });
+      await batch.commit();
     }
   }catch(e){console.error('Error guardando:',e);}
   actualizarUI();
@@ -587,34 +579,25 @@ async function guardar(){
 
 async function cargar(){
   try{
-    const res=await fetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
-    const data=await res.json();
-    const docs=(data.documents||[]).filter(d=>
-      (d.fields?.quincena?.stringValue||'')=== qKey()
-    );
-    docs.sort((a,b)=>{
-      const oa=parseInt(a.fields?.orden?.integerValue||0);
-      const ob=parseInt(b.fields?.orden?.integerValue||0);
-      return oa-ob;
-    });
-    S.huespedes=docs.map(d=>{
-      const f=d.fields||{};
+    const snap=await db.collection('huespedes').where('quincena','==',qKey()).orderBy('orden').get();
+    S.huespedes=snap.docs.map(d=>{
+      const f=d.data();
       return{
-        id:f.id?.stringValue||d.name.split('/').pop(),
-        nombre:f.nombre?.stringValue||'',
-        fnac:f.fnac?.stringValue||'',
-        hostal:f.hostal?.stringValue||'',
-        fechaEntrada:f.fecha_entrada?.stringValue||'',
-        fechaSalida:f.fecha_salida?.stringValue||'',
-        cabeza:f.cabeza?.booleanValue||false,
-        picnic:f.picnic?.booleanValue||false,
-        minDias:parseInt(f.min_dias?.integerValue||0),
-        snackDias:parseInt(f.snack_dias?.integerValue||0),
-        importado:f.importado?.booleanValue||false,
-        tipoManual:f.tipo_manual?.stringValue||'',
-        sinSnack:f.sin_snack?.booleanValue||false,
-        orden:parseInt(f.orden?.integerValue||0),
-        quincena:f.quincena?.stringValue||''
+        id:f.id||d.id,
+        nombre:f.nombre||'',
+        fnac:f.fnac||'',
+        hostal:f.hostal||'',
+        fechaEntrada:f.fecha_entrada||'',
+        fechaSalida:f.fecha_salida||'',
+        cabeza:f.cabeza||false,
+        picnic:f.picnic||false,
+        minDias:f.min_dias||0,
+        snackDias:f.snack_dias||0,
+        importado:f.importado||false,
+        tipoManual:f.tipo_manual||'',
+        sinSnack:f.sin_snack||false,
+        orden:f.orden||0,
+        quincena:f.quincena||''
       };
     });
     const fv=localStorage.getItem(festKey());
