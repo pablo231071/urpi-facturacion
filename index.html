@@ -6,20 +6,8 @@
 <title>URPI · Facturación CEAR</title>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
-const firebaseConfig={
-  apiKey:"AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc",
-  authDomain:"urpi-facturacion.firebaseapp.com",
-  projectId:"urpi-facturacion",
-  storageBucket:"urpi-facturacion.firebasestorage.app",
-  messagingSenderId:"993808083661",
-  appId:"1:993808083661:web:d7d33d5106fa296794d784"
-};
-firebase.initializeApp(firebaseConfig);
-const db=firebase.firestore();
-</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -516,7 +504,16 @@ const HOSTALES={
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
-// Firebase SDK compat — db disponible globalmente
+// Firebase SDK compat — inicializado en window.onload
+let db=null;
+const firebaseConfig={
+  apiKey:"AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc",
+  authDomain:"urpi-facturacion.firebaseapp.com",
+  projectId:"urpi-facturacion",
+  storageBucket:"urpi-facturacion.firebasestorage.app",
+  messagingSenderId:"993808083661",
+  appId:"1:993808083661:web:d7d33d5106fa296794d784"
+};
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
@@ -2287,12 +2284,20 @@ async function cerrarQuincena(){
   document.getElementById('sQ').value=q;
 })();
 
-// Iniciar — Firebase REST API no necesita esperar módulo
-window._urpiInit=function(){cambiarQ().catch(console.error);};
+// Iniciar — esperar a que Firebase SDK esté disponible
+function initFirebaseAndStart(){
+  if(typeof firebase==='undefined'||!firebase.firestore){
+    setTimeout(initFirebaseAndStart,50);
+    return;
+  }
+  if(!firebase.apps.length){firebase.initializeApp(firebaseConfig);}
+  db=firebase.firestore();
+  cambiarQ().catch(console.error);
+}
 if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',()=>window._urpiInit());
+  document.addEventListener('DOMContentLoaded',initFirebaseAndStart);
 }else{
-  window._urpiInit();
+  initFirebaseAndStart();
 }
 </script>
 </body>
