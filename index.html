@@ -332,6 +332,12 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
       <div class="fg"><label>Min iniciación (días)</label><input type="number" id="mMin" value="0" min="0"></div>
       <div class="fg"><label>Snack escolar (días)</label><input type="number" id="mSnack" value="0" min="0"></div>
     </div>
+    <div style="margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="mSinSnack" style="width:auto">
+        <span>Sin snack escolar (menor no escolarizado)</span>
+      </label>
+    </div>
     <button class="btn btn-dark" onclick="addManual()">Guardar huésped</button>
   </div>
 </div>
@@ -1026,6 +1032,7 @@ function renderPrev(personas){
         <label><input type="checkbox" ${p.picnic?'checked':''} onchange="window._prev[${i}].picnic=this.checked"> Picnic</label>
         <label>Min días: <input type="number" value="${p.minDias}" min="0" onchange="window._prev[${i}].minDias=parseInt(this.value)||0"></label>
         <label>Snack días: <input type="number" value="${p.snackDias}" min="0" onchange="window._prev[${i}].snackDias=parseInt(this.value)||0"></label>
+        <label><input type="checkbox" ${p.sinSnack?'checked':''} onchange="window._prev[${i}].sinSnack=this.checked"> Sin snack (no escolarizado)</label>
       </div>
     </div>`;
   }).join('');
@@ -1213,6 +1220,7 @@ async function addManual(){
     picnic:document.getElementById('mPicnic').value==='si',
     minDias:parseInt(document.getElementById('mMin').value)||0,
     snackDias:parseInt(document.getElementById('mSnack').value)||0,
+    sinSnack:document.getElementById('mSinSnack').checked,
     fechaEntrada:fechaEnt,
     fechaSalida:fechaSal
   };
@@ -1232,6 +1240,7 @@ async function addManual(){
   document.getElementById('mFnac').value='';
   document.getElementById('mFechaEnt').value='';
   document.getElementById('mFechaSal').value='';
+  document.getElementById('mSinSnack').checked=false;
   showMsg('manual','✓ Huésped guardado correctamente','ok');
   cntNav();
 }
@@ -1270,10 +1279,12 @@ function calcImp(h){
   // Min Iniciación: siempre manual (h.minDias)
   const minDiasCalc=h.minDias||0;
   const minI=minDiasCalc*pMin;
-  // Recalcular snack automáticamente para menores usando festivos actuales
+  // Recalcular snack automáticamente para menores escolarizados
   let snackDias=h.snackDias||0;
-  if(menor&&!bebe&&ini&&fin){
+  if(menor&&!bebe&&ini&&fin&&!h.sinSnack){
     snackDias=calcLectivos(ini,fin);
+  } else if(h.sinSnack){
+    snackDias=0;
   }
   const snackI=snackDias*pSnack;
   const picnic=0;
@@ -1339,6 +1350,7 @@ function renderH(){
             ${h.picnic?'<span class="badge b-picnic">Picnic</span>':''}
             ${h.snackDias?`<span class="badge b-snack">Snack ×${h.snackDias}d</span>`:''}
             ${h.minDias?`<span class="badge b-min">Min ×${h.minDias}d</span>`:''}
+            ${h.sinSnack?'<span class="badge" style="background:#fef9c3;color:#854d0e">Sin snack</span>':''}
           </div>
         </div>`;
       }).join('')}</div>
@@ -1361,6 +1373,7 @@ async function editH(id){
   document.getElementById('mPicnic').value=h.picnic?'si':'no';
   document.getElementById('mMin').value=h.minDias||0;
   document.getElementById('mSnack').value=h.snackDias||0;
+  document.getElementById('mSinSnack').checked=h.sinSnack||false;
   // Guardar el ID que se está editando para actualizarlo al guardar
   window._editandoId=id;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
