@@ -503,23 +503,7 @@ const HOSTALES={
 const NACS=['UCRANIA','RUSIA','COLOMBIA','VENEZUELA','MALI','SENEGAL','GUINEA','NIGERIA','CAMERÚN','CAMERUN','MARRUECOS','ARGELIA','PERÚ','PERU','ECUADOR','BOLIVIA','BRASIL','CUBA','HAITI','SIRIA','AFGANISTAN','IRAN','IRAK','GEORGIA','MOLDOVA','PAKISTAN','BANGLADESH','ETIOPIA','ERITREA','SOMALIA','SUDAN','GHANA','ANGOLA','CONGO','ALBANIA','ARMENIA','AZERBAIYAN','INDIA','NEPAL','MYANMAR','FILIPINAS','INDONESIA','VIETNAM','TAILANDIA','CHINA','TURQUIA','AFGANISTÁN','KAZAJSTAN','UZBEKISTAN','KIRGUISTAN','MAURITANIA','NIGER','BURKINA','TOGO','BENIN','CAMERÚN','COSTA DE MARFIL'];
 const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMOS','ASIMISMO','GRACIAS','SALUDOS','NOMBRE','FECHA','NACIONAL','PASAPORTE','HORA','ANTES','DESPUES','ALMUERZO','DESAYUNO','CENA','PICNIC','TENER','CUENTA','JUEVES','LUNES','MARTES','MIERCOLES','MIÉRCOLES','VIERNES','SABADO','SÁBADO','DOMINGO','RECURSO','FINANCIADO','UNIDAD','FAMILIAR','USUARIA','USUARIO','HAB','HABITACION','CAMBIO','HABITACIÓN','COMUNICAMOS','LLEGARAN','ROGAMOS','GUARDE'];
 
-// Firebase REST API
-const PROJECT='urpi-facturacion';
-const FB_KEY='AIzaSyDF3TSY-lQAI2tJcNAISh7KCalYSf7i8Xc';
-const API=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
-
-// Fetch con reintento automático
-async function fbFetch(url, opts={}, reintentos=3){
-  for(let i=0;i<reintentos;i++){
-    try{
-      const r=await fetch(url,opts);
-      if(r.ok||r.status===404||r.status===400)return r;
-    }catch(e){
-      if(i===reintentos-1)throw e;
-      await new Promise(r=>setTimeout(r,500*(i+1)));
-    }
-  }
-}
+// Datos guardados via API routes de Vercel (/api/guardar y /api/cargar)
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
@@ -532,89 +516,23 @@ async function guardar(){
   try{
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
-    const q=qKey();
-
-    // 1. Leer IDs existentes en esta quincena
-    const getRes=await fbFetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
-    const getData=await getRes.json();
-    const docsExist=(getData.documents||[]).filter(d=>(d.fields?.quincena?.stringValue||'')=== q);
-    const idsExist=new Set(docsExist.map(d=>d.fields?.id?.stringValue||d.name.split('/').pop()));
-    const idsActuales=new Set(S.huespedes.map(h=>String(h.id)));
-
-    // 2. Borrar solo los que ya no están (en paralelo)
-    await Promise.all(
-      docsExist
-        .filter(d=>!idsActuales.has(d.fields?.id?.stringValue||d.name.split('/').pop()))
-        .map(d=>fbFetch(`${API}/huespedes/${d.name.split('/').pop()}?key=${FB_KEY}`,{method:'DELETE'}))
-    );
-
-    // 3. Guardar en grupos de 10 en paralelo con reintento
-    const GRUPO=10;
-    for(let i=0;i<S.huespedes.length;i+=GRUPO){
-      await Promise.all(S.huespedes.slice(i,i+GRUPO).map(async(h,li)=>{
-        const idx=i+li;
-        const id=String(h.id);
-        const fields={
-          id:{stringValue:id},
-          nombre:{stringValue:h.nombre||''},
-          fnac:{stringValue:h.fnac||''},
-          hostal:{stringValue:h.hostal||''},
-          fecha_entrada:{stringValue:h.fechaEntrada||''},
-          fecha_salida:{stringValue:h.fechaSalida||''},
-          cabeza:{booleanValue:!!h.cabeza},
-          picnic:{booleanValue:!!h.picnic},
-          min_dias:{integerValue:h.minDias||0},
-          snack_dias:{integerValue:h.snackDias||0},
-          importado:{booleanValue:!!h.importado},
-          orden:{integerValue:idx},
-          tipo_manual:{stringValue:h.tipoManual||''},
-          sin_snack:{booleanValue:!!h.sinSnack},
-          quincena:{stringValue:q}
-        };
-        if(idsExist.has(id)){
-          const mask=Object.keys(fields).map(k=>`updateMask.fieldPaths=${k}`).join('&');
-          await fbFetch(`${API}/huespedes/${encodeURIComponent(id)}?${mask}&key=${FB_KEY}`,{
-            method:'PATCH',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fields})
-          });
-        } else {
-          await fbFetch(`${API}/huespedes?documentId=${encodeURIComponent(id)}&key=${FB_KEY}`,{
-            method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fields})
-          });
-        }
-      }));
-    }
+    const r=await fetch('/api/guardar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({huespedes:S.huespedes,quincena:qKey()})
+    });
+    const data=await r.json();
+    if(!data.ok)throw new Error(data.error||'Error servidor');
   }catch(e){console.error('Error guardando:',e);}
   actualizarUI();
 }
 
 async function cargar(){
   try{
-    const res=await fbFetch(`${API}/huespedes?pageSize=500&key=${FB_KEY}`);
-    const data=await res.json();
-    const docs=(data.documents||[]).filter(d=>(d.fields?.quincena?.stringValue||'')=== qKey());
-    docs.sort((a,b)=>(parseInt(a.fields?.orden?.integerValue||0))-(parseInt(b.fields?.orden?.integerValue||0)));
-    S.huespedes=docs.map(d=>{
-      const f=d.fields||{};
-      return{
-        id:f.id?.stringValue||d.name.split('/').pop(),
-        nombre:f.nombre?.stringValue||'',
-        fnac:f.fnac?.stringValue||'',
-        hostal:f.hostal?.stringValue||'',
-        fechaEntrada:f.fecha_entrada?.stringValue||'',
-        fechaSalida:f.fecha_salida?.stringValue||'',
-        cabeza:f.cabeza?.booleanValue||false,
-        picnic:f.picnic?.booleanValue||false,
-        minDias:parseInt(f.min_dias?.integerValue||0),
-        snackDias:parseInt(f.snack_dias?.integerValue||0),
-        importado:f.importado?.booleanValue||false,
-        tipoManual:f.tipo_manual?.stringValue||'',
-        sinSnack:f.sin_snack?.booleanValue||false,
-        orden:parseInt(f.orden?.integerValue||0),
-        quincena:f.quincena?.stringValue||''
-      };
-    });
+    const r=await fetch(`/api/cargar?quincena=${encodeURIComponent(qKey())}`);
+    const data=await r.json();
+    if(!data.ok)throw new Error(data.error||'Error servidor');
+    S.huespedes=data.huespedes||[];
     const fv=localStorage.getItem(festKey());
     S.festivos=fv?JSON.parse(fv):[];
     const cfg=localStorage.getItem('urpi_config');
