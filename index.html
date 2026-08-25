@@ -569,6 +569,7 @@ async function cambiarQ(){
 }
 
 function fmt(d){return d?d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function fmtISO(d){if(!d)return '';if(typeof d==='string')return d;const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
 function normDate(d){return d?new Date(d.getFullYear(),d.getMonth(),d.getDate()):null;}
 function pd(s){
@@ -1022,7 +1023,7 @@ function renderPrev(personas){
     const puedeSerCabeza=t==='adulto';
     return `<div class="pprev" id="pprev-${i}">
       <div class="pprev-top">
-        <div class="fg"><label>Nombre</label><input type="text" value="${p.nombre}" onchange="window._prev[${i}].nombre=this.value;renderPrevRow(${i})"></div>
+        <div class="fg"><label>Nombre</label><input type="text" value="${esc(p.nombre)}" onchange="window._prev[${i}].nombre=this.value;renderPrevRow(${i})"></div>
         <div class="fg"><label>Fecha nacimiento</label><input type="date" value="${p.fnac}" onchange="window._prev[${i}].fnac=this.value;renderPrevRow(${i})"></div>
         <div style="padding-top:20px;display:flex;gap:6px;align-items:center">
           <span class="badge ${bc}">${bt}</span>
@@ -1052,7 +1053,7 @@ function renderPrevTrasladoMasivo(tm){
       </div>`;
     mv.nombres.forEach((nombre,ni)=>{
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--gray3)">
-        <input type="text" value="${nombre}" style="flex:1;padding:4px 8px;font-size:12px"
+        <input type="text" value="${esc(nombre)}" style="flex:1;padding:4px 8px;font-size:12px"
           onchange="window._trasladoMasivo.movimientos[${mi}].nombres[${ni}]=this.value">
         <span style="font-size:11px;color:var(--gray)">${mv.destino}</span>
       </div>`;
@@ -1079,9 +1080,9 @@ async function confirmarTrasladoMasivo(){
   for(const mv of tm.movimientos){
     for(const nombre of mv.nombres){
       const key=nombre.toUpperCase().trim();
-      const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key||
+      const ex=S.huespedes.find(h=>h.hostal===mv.origen&&!h.fechaSalida&&(h.nombre.toUpperCase().trim()===key||
         h.nombre.toUpperCase().includes(key.split(' ')[0])&&
-        h.nombre.toUpperCase().includes(key.split(' ').slice(-1)[0]));
+        h.nombre.toUpperCase().includes(key.split(' ').slice(-1)[0])));
       if(ex){
         // Actualizar: poner fecha salida en origen y crear nuevo en destino
         ex.fechaSalida=fechaAnt;
@@ -1171,7 +1172,9 @@ async function confirmar(){
 
   personas.forEach(p=>{
     const key=p.nombre.toUpperCase().trim();
-    const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===key);
+    const hostalBusqueda=tipo==='TRASLADO'&&traslado?traslado.origen:hostal;
+    const candidatos=S.huespedes.filter(h=>h.nombre.toUpperCase().trim()===key&&h.hostal===hostalBusqueda);
+    const ex=candidatos.find(h=>!h.fechaSalida)||candidatos[candidatos.length-1];
 
     if(tipo==='TRASLADO'&&traslado){
       // Calcular día anterior al traslado para el hostal origen
@@ -1288,14 +1291,19 @@ function calcImp(h){
     snackDias=0;
   }
   const snackI=snackDias*pSnack;
-  const picnic=0;
-  const base=Math.round((aloj+minI+snackI)*100)/100;
-  const igic=Math.round(base*igicPct*100)/100;
-  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
+  const picnic=h.picnic?pPicnic:0;
+  const baseSinPicnic=Math.round((aloj+minI+snackI)*100)/100;
+  const base=Math.round((baseSinPicnic+picnic)*100)/100;
+  // El Excel emite el picnic en una línea separada; se redondea el IGIC por línea.
+  const igicSinPicnic=Math.round(baseSinPicnic*igicPct*100)/100;
+  const igicPicnic=Math.round(picnic*igicPct*100)/100;
+  const igic=Math.round((igicSinPicnic+igicPicnic)*100)/100;
+  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,baseSinPicnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
 }
 
 function renderH(){
   const a=document.getElementById('hContent');
+  document.getElementById('hDuplicados')?.remove();
   if(!S.huespedes.length){
     a.innerHTML='<div class="empty"><div class="empty-icon">◉</div><div class="empty-txt">Sin huéspedes registrados. Empieza pegando un correo de CEAR.</div></div>';return;
   }
@@ -1316,9 +1324,10 @@ function renderH(){
   });
   const duplicados=new Set(Object.keys(activosPorNombre).filter(k=>activosPorNombre[k].length>1));
   if(duplicados.size>0){
-    const dupMsg=[...duplicados].map(k=>`${k} (${activosPorNombre[k].join(', ')})`).join('<br>');
+    const dupMsg=[...duplicados].map(k=>`${esc(k)} (${activosPorNombre[k].map(esc).join(', ')})`).join('<br>');
     const dupDiv=document.createElement('div');
     dupDiv.className='msg msg-warn';
+    dupDiv.id='hDuplicados';
     dupDiv.style.marginBottom='10px';
     dupDiv.innerHTML=`⚠ <strong>Personas activas en múltiples hostales:</strong><br>${dupMsg}`;
     a.parentNode.insertBefore(dupDiv,a);
@@ -1329,7 +1338,7 @@ function renderH(){
   a.innerHTML=Object.entries(byH).map(([hostal,hs])=>{
     const tot=hs.reduce((s,h)=>s+calcImp(h).total,0);
     return `<div class="hsect">
-      <div class="hhead"><span>${hostal}</span><span class="htotal">${tot.toFixed(2)} €</span></div>
+      <div class="hhead"><span>${esc(hostal)}</span><span class="htotal">${tot.toFixed(2)} €</span></div>
       <div class="hbody">${hs.map(h=>{
         const imp=calcImp(h);const t=imp.bebe?'bebe':imp.menor?'menor':'adulto';
         const bc=t==='adulto'?'b-adulto':t==='menor'?'b-menor':'b-bebe';
@@ -1337,7 +1346,7 @@ function renderH(){
         return `<div class="hrow ${h.cabeza?'cab':t==='adulto'?'':t}">
           <div class="hrow-top">
             <div>
-              <div class="hrow-name" style="font-weight:${h.cabeza?600:400}">${h.nombre}</div>
+              <div class="hrow-name" style="font-weight:${h.cabeza?600:400}">${esc(h.nombre)}</div>
               <div class="hrow-meta">${h.fechaEntrada||'sin entrada'} → ${h.fechaSalida||'quincena completa'} · ${imp.dias} días · ${imp.total.toFixed(2)} €</div>
             </div>
             <div class="hrow-acts">
@@ -1404,7 +1413,6 @@ function renderR(){
   const a=document.getElementById('rContent');
   if(!S.huespedes.length){a.innerHTML='<div class="empty"><div class="empty-icon">≡</div><div class="empty-txt">Sin huéspedes registrados.</div></div>';return;}
   const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
-  const{igicPct}=getTarifas();
   let totB=0,totI=0;
   S.huespedes.forEach(h=>{const i=calcImp(h);totB+=i.base;totI+=i.igic;});
   const totT=Math.round((totB+totI)*100)/100;
@@ -1415,12 +1423,12 @@ function renderR(){
     <div class="stat accent"><div class="stat-v">${totT.toFixed(0)} €</div><div class="stat-l">Total con IGIC</div></div>
   </div>`+Object.entries(byH).map(([hostal,hs])=>{
     const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
-    const hI=Math.round(hB*igicPct*100)/100;
+    const hI=hs.reduce((s,h)=>s+calcImp(h).igic,0);
     const hT=Math.round((hB+hI)*100)/100;
     const rows=hs.map(h=>{
       const i=calcImp(h);const t=i.bebe?'Bebé':i.menor?'Menor':'Adulto';
       return `<tr>
-        <td style="font-weight:${h.cabeza?500:400}">${h.nombre}</td>
+        <td style="font-weight:${h.cabeza?500:400}">${esc(h.nombre)}</td>
         <td>${t}</td>
         <td class="mono">${h.fechaEntrada||'—'}</td>
         <td class="mono">${h.fechaSalida||'quincena completa'}</td>
@@ -1433,7 +1441,7 @@ function renderR(){
       </tr>`;
     }).join('');
     return `<div class="hsect">
-      <div class="hhead"><span>${hostal}</span><span class="htotal">${hT.toFixed(2)} €</span></div>
+      <div class="hhead"><span>${esc(hostal)}</span><span class="htotal">${hT.toFixed(2)} €</span></div>
       <div class="hbody" style="padding:0"><div class="tbl-wrap">
         <table class="tbl">
           <tr><th>Huésped</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th style="text-align:right">Días</th><th style="text-align:right">Aloj.</th><th style="text-align:right">Extras</th><th style="text-align:right">Base</th><th style="text-align:right">IGIC</th><th style="text-align:right">Total</th></tr>
@@ -1453,17 +1461,16 @@ function renderR(){
 function verPreview(){
   if(!S.huespedes.length){document.getElementById('genPreview').innerHTML='<div class="msg msg-warn">Sin huéspedes registrados.</div>';return;}
   const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
-  const{igicPct}=getTarifas();
   let numFact=parseInt(document.getElementById('cfgNum').value);
   const anoFact=document.getElementById('cfgAno').value;
   let totB=0,totI=0,totT=0;
   const rows=Object.entries(byH).map(([hostal,hs])=>{
     const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
-    const hI=Math.round(hB*igicPct*100)/100;
+    const hI=hs.reduce((s,h)=>s+calcImp(h).igic,0);
     const hT=Math.round((hB+hI)*100)/100;
     totB+=hB;totI+=hI;totT+=hT;
     return `<div class="gen-fact-row">
-      <span><strong>${hostal}</strong> · Fact. ${numFact++}-${anoFact} · ${hs.length} huéspedes</span>
+      <span><strong>${esc(hostal)}</strong> · Fact. ${numFact++}-${anoFact} · ${hs.length} huéspedes</span>
       <span style="font-family:'JetBrains Mono',monospace;font-size:11px">${hB.toFixed(2)} € + IGIC = <strong>${hT.toFixed(2)} €</strong></span>
     </div>`;
   }).join('');
@@ -1808,7 +1815,7 @@ async function generarExcel(){
       const minDiasCalc=h.minDias||0;
       const minI=minDiasCalc*pMin;
       // Recalcular snack con festivos actuales para menores
-      const snackDiasCalc=menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0);
+      const snackDiasCalc=h.sinSnack?0:(menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0));
       const snackI=snackDiasCalc*pSnack;
       const base=Math.round((aloj+minI+snackI)*100)/100;
       const igic=Math.round(base*igicPct*100)/100;
@@ -1821,13 +1828,11 @@ async function generarExcel(){
       if(num>1&&rowsEnPagina+filasNecesarias>ROWS_PER_PAGE){
         // Salto de página explícito ANTES de la cabecera
         ws.getRow(cur).height=9.95;
-        ws.addPageBreaks=ws.addPageBreaks||[];
         const breakRow=cur;
         cur++;
         cur=writeHeader(ws,cur,hostal,nf,fmt(S.qFin),per,mes,email,tel);
         // Añadir salto de página en la fila vacía antes de la cabecera
-        ws.getRow(breakRow).addPageBreak=true;
-        try{ws.rowBreaks.push({id:breakRow,man:true});}catch(e){}
+        try{ws.getRow(breakRow).addPageBreak();}catch(e){}
         rowsEnPagina=0;
       }
 
@@ -1968,7 +1973,11 @@ async function importarExcels(files){
       await wb.xlsx.load(buf);
 
       // Procesar solo hojas CEAR
-      const todasCear=wb.worksheets.filter(ws=>ws.name.toLowerCase().includes('cear'));
+      const todasCear=wb.worksheets.filter(ws=>
+        ws.name.toLowerCase().includes('cear')||
+        detectarHostalDeNombre(ws.name)||
+        detectarHostalDeNombre(ws.getCell(1,1).value)
+      );
       if(!todasCear.length){
         hostalResults.push({hostal:'—',archivo:file.name,importados:0,error:'No se encontraron hojas CEAR en este archivo'});
         continue;
@@ -2146,7 +2155,7 @@ async function renderCerrar(){
     </div>
     ${continuan.length?`<div style="margin-top:8px">
       <div style="font-size:11px;color:var(--gray);margin-bottom:6px;font-weight:500">Pasan a la siguiente quincena:</div>
-      ${continuan.map(h=>`<span style="display:inline-block;background:var(--cream);border:1px solid var(--gray3);border-radius:20px;padding:2px 10px;font-size:11px;margin:2px">${h.nombre}</span>`).join('')}
+      ${continuan.map(h=>`<span style="display:inline-block;background:var(--cream);border:1px solid var(--gray3);border-radius:20px;padding:2px 10px;font-size:11px;margin:2px">${esc(h.nombre)}</span>`).join('')}
     </div>`:''}`;
 
   document.getElementById('cerrarSiguiente').innerHTML=`
