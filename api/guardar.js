@@ -16,6 +16,35 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+function normalizarNombre(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function datosQuincena(clave) {
+  const [ano, mes, tipo] = clave.split('_').map(Number);
+  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+
+  if (tipo === 1) {
+    return {
+      fin: `${ano}-${String(mes).padStart(2, '0')}-15`,
+      siguiente: `${ano}_${mes}_2`
+    };
+  }
+
+  const siguienteMes = mes === 12 ? 1 : mes + 1;
+  const siguienteAno = mes === 12 ? ano + 1 : ano;
+
+  return {
+    fin: `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`,
+    siguiente: `${siguienteAno}_${siguienteMes}_1`
+  };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -33,7 +62,13 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { huespedes, quincena } = req.body || {};
+    const {
+      huespedes,
+      quincena,
+      reemplazar = false,
+      eliminarIds = [],
+      permitirLimpiarSalidaIds = []
+    } = req.body || {};
 
     const quincenaLimpia = String(quincena || '').trim();
 
@@ -48,6 +83,13 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({
         ok: false,
         error: 'La lista de huéspedes no es válida'
+      });
+    }
+
+    if (!Array.isArray(eliminarIds) || !Array.isArray(permitirLimpiarSalidaIds)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'La operación de guardado no es válida'
       });
     }
 
@@ -83,6 +125,7 @@ module.exports = async function handler(req, res) {
         orden,
         tipo_manual: String(h.tipoManual || ''),
         sin_snack: Boolean(h.sinSnack),
+        origen_cierre: String(h.origenCierre || ''),
         quincena: quincenaLimpia
       };
     });
@@ -102,10 +145,61 @@ module.exports = async function handler(req, res) {
       .where('quincena', '==', quincenaLimpia)
       .get();
 
+    const existentesPorId = new Map(
+      snap.docs.map((doc) => [doc.id, doc.data()])
+    );
+    const limpiarSalida = new Set(permitirLimpiarSalidaIds.map(String));
+
+    // Una pantalla antigua no debe borrar una salida que la
+    // automatización haya registrado entretanto.
+    datosValidos.forEach((h) => {
+      const anterior = existentesPorId.get(h.id);
+      if (
+        anterior?.fecha_salida &&
+        !h.fecha_salida &&
+        !limpiarSalida.has(h.id)
+      ) {
+        h.fecha_salida = anterior.fecha_salida;
+      }
+    });
+
+    // Si se registra una salida después de haber cerrado la quincena,
+    // retirar la copia que el cierre creó en la quincena siguiente.
+    const periodo = datosQuincena(quincenaLimpia);
+    const siguienteSnap = await col
+      .where('quincena', '==', periodo.siguiente)
+      .get();
+
+    const salidasDelPeriodo = new Set(
+      datosValidos
+        .filter((h) => h.fecha_salida && h.fecha_salida <= periodo.fin)
+        .map((h) => `${normalizarNombre(h.nombre)}|${h.hostal}`)
+    );
+
     const operaciones = [];
 
+    const idsAEliminar = new Set(eliminarIds.map(String));
+
     snap.docs.forEach((doc) => {
-      if (!idsActuales.has(doc.id)) {
+      if (
+        idsAEliminar.has(doc.id) ||
+        (reemplazar && !idsActuales.has(doc.id))
+      ) {
+        operaciones.push({
+          tipo: 'delete',
+          ref: doc.ref
+        });
+      }
+    });
+
+    siguienteSnap.docs.forEach((doc) => {
+      const h = doc.data();
+      const clave = `${normalizarNombre(h.nombre)}|${h.hostal || ''}`;
+
+      if (
+        h.origen_cierre === quincenaLimpia &&
+        salidasDelPeriodo.has(clave)
+      ) {
         operaciones.push({
           tipo: 'delete',
           ref: doc.ref

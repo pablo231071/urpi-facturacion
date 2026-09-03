@@ -518,14 +518,20 @@ function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
 // qKey: clave de quincena para filtrar en Firestore
 function qKey(){return `${S.qAno}_${S.qMes}_${S.qTipo}`;}
 
-async function guardar(){
+async function guardar(opciones={}){
   try{
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
     const r=await fetch('/api/guardar',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({huespedes:S.huespedes,quincena:qKey()})
+      body:JSON.stringify({
+        huespedes:S.huespedes,
+        quincena:qKey(),
+        reemplazar:Boolean(opciones.reemplazar),
+        eliminarIds:opciones.eliminarIds||[],
+        permitirLimpiarSalidaIds:opciones.permitirLimpiarSalidaIds||[]
+      })
     });
     const data=await r.json();
     if(!data.ok)throw new Error(data.error||'Error servidor');
@@ -714,6 +720,9 @@ function parsPersonas(txt){
   // Formato especial Casa Lima
   if(esCasaLimaFormat(txt))return parsPersonasCasaLima(txt);
 
+  // Algunos correos separan nombre y apellidos en dos líneas.
+  const formatoNombreApellidos=/(?:^|\n)\s*Nombre\s*\n\s*Apellidos\s*(?:\n|$)/i.test(txt);
+
   // Cabeceras de tabla que se eliminan como líneas completas
   const CABS_ELIMINAR=['Nombre y Apellidos','Nombre','Apellidos','Fecha Nac.',
     'Fecha Nacimiento','NIE/Pasaporte','Pasaporte','NIE','Hora',
@@ -748,6 +757,15 @@ function parsPersonas(txt){
     const sig1=i+1<lineas.length?lineas[i+1]:'';
     const sig2=i+2<lineas.length?lineas[i+2]:'';
     const sig3=i+3<lineas.length?lineas[i+3]:'';
+
+    if(formatoNombreApellidos&&esNombre(l)&&esNombre(sig1)&&esFecha(sig2)){
+      const nombre=(l+' '+sig1).replace(/\s+/g,' ').trim();
+      const fm=sig2.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+      const fnac=fm?`${fm[3]}-${fm[2].padStart(2,'0')}-${fm[1].padStart(2,'0')}`:'';
+      out.push({nombre,fnac,ageN:null,cabeza:out.length===0,picnic:false,minDias:0,snackDias:0});
+      i+=2;
+      continue;
+    }
 
     const m1a=esFecha(sig1);                              // nombre → fecha
     const m1b=esNac(sig1)&&esFecha(sig2);                 // nombre → nac → fecha
@@ -953,12 +971,15 @@ function procesarCorreoUnico(txt){
   const tipo=/FIN DE ESTANCIA/i.test(txt)?'FIN':'INICIO';
   const hostal=detHostal(txt);
   const picnicG=/PICNIC/i.test(txt);
-  // Buscar la primera fecha que aparezca en el texto
+  // Priorizar la fecha que acompaña a INICIO/FIN DE ESTANCIA.
   let fecha='';
-  const matches=[...txt.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g)];
+  const fechaMovimiento=txt.match(/(?:INICIO|FIN)\s+DE\s+ESTANCIA[\s\S]{0,150}?(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/i);
+  const matches=fechaMovimiento?[fechaMovimiento]:[...txt.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g)];
   if(matches.length>0){
     const m=matches[0];
-    fecha=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    const candidata=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    const comprobada=pd(candidata);
+    fecha=comprobada&&fmtISO(comprobada)===candidata?candidata:'';
   } else fecha=fmtISO(new Date());
   const personas=parsPersonas(txt);
   if(picnicG&&tipo==='FIN')personas.forEach(p=>p.picnic=true);
@@ -1228,18 +1249,32 @@ async function addManual(){
     fechaEntrada:fechaEnt,
     fechaSalida:fechaSal
   };
+  let idModificado='';
+  let salidaFueLimpiada=false;
   // Si estamos editando un huésped existente por ID
   if(window._editandoId){
     const idx=S.huespedes.findIndex(h=>String(h.id)===String(window._editandoId));
-    if(idx>=0){S.huespedes[idx]={...S.huespedes[idx],...datos};}
+    if(idx>=0){
+      salidaFueLimpiada=Boolean(S.huespedes[idx].fechaSalida)&&!datos.fechaSalida;
+      S.huespedes[idx]={...S.huespedes[idx],...datos};
+    }
     else{S.huespedes.push({id:window._editandoId,...datos});}
+    idModificado=String(window._editandoId);
     window._editandoId=null;
   } else {
-    const ex=S.huespedes.find(h=>h.nombre.toUpperCase().trim()===nombre.toUpperCase().trim());
-    if(ex){Object.assign(ex,datos);}
-    else{S.huespedes.push({id:Date.now()+Math.random(),...datos});}
+    const clave=nombre.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();
+    const ex=S.huespedes.find(h=>
+      h.hostal===hostal&&
+      !h.fechaSalida&&
+      String(h.nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase()===clave
+    );
+    if(ex){Object.assign(ex,datos);idModificado=String(ex.id);}
+    else{
+      const nuevo={id:Date.now()+Math.random(),...datos};
+      S.huespedes.push(nuevo);idModificado=String(nuevo.id);
+    }
   }
-  await guardar();
+  await guardar({permitirLimpiarSalidaIds:salidaFueLimpiada?[idModificado]:[]});
   document.getElementById('mNombre').value='';
   document.getElementById('mFnac').value='';
   document.getElementById('mFechaEnt').value='';
@@ -1367,10 +1402,10 @@ function renderH(){
     </div>`;
   }).join('');
 }
-function delH(id){
+async function delH(id){
   if(!confirm('¿Eliminar este huésped?'))return;
   S.huespedes=S.huespedes.filter(h=>String(h.id)!==String(id));
-  guardar();renderH();
+  await guardar({eliminarIds:[String(id)]});renderH();
 }
 async function editH(id){
   const h=S.huespedes.find(x=>String(x.id)===String(id));if(!h)return;
@@ -1887,7 +1922,7 @@ function renderConfig(){actualizarUI();}
 async function limpiarQuincena(){
   if(!confirm(`¿Eliminar todos los huéspedes y festivos?`))return;
   S.huespedes=[];S.festivos=[];
-  await guardar();renderH();renderF();
+  await guardar({reemplazar:true});renderH();renderF();
   alert('✓ Datos eliminados');
 }
 function storKey(){return `${S.qTipo}_${S.qMes}_${S.qAno}`;}
@@ -1922,7 +1957,7 @@ async function importarExcels(files){
   const limpiar=document.getElementById('chkLimpiar')?.checked!==false;
   if(limpiar){
     S.huespedes=[];
-    guardar();
+    await guardar({reemplazar:true});
     actualizarUI();
   }
 
@@ -2205,6 +2240,7 @@ async function cerrarQuincena(){
     fechaSalida:'',
     picnic:false,
     snackDias:0,
+    origenCierre:qKey(),
     quincena:`${nAno}_${nMes}_${nTipo}`
   }));
 

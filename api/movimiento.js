@@ -34,6 +34,18 @@ function quincenaDeFecha(fecha) {
   return `${ano}_${mes}_${dia <= 15 ? 1 : 2}`;
 }
 
+function siguienteQuincena(clave) {
+  const [ano, mes, tipo] = clave.split('_').map(Number);
+
+  if (tipo === 1) {
+    return `${ano}_${mes}_2`;
+  }
+
+  return mes === 12
+    ? `${ano + 1}_1_1`
+    : `${ano}_${mes + 1}_1`;
+}
+
 function diaAnterior(fecha) {
   const [ano, mes, dia] = fecha
     .split('-')
@@ -228,6 +240,15 @@ module.exports = async function handler(req, res) {
           const quincenaSnap =
             await transaction.get(consulta);
 
+          const siguienteSnap =
+            await transaction.get(
+              huespedesCol.where(
+                'quincena',
+                '==',
+                siguienteQuincena(quincena)
+              )
+            );
+
           const registros =
             quincenaSnap.docs.map((documento) => ({
               ref: documento.ref,
@@ -287,6 +308,25 @@ module.exports = async function handler(req, res) {
                       .serverTimestamp()
                 }
               );
+
+              // El cierre puede haberse ejecutado antes de recibir este
+              // correo. En ese caso, borrar únicamente la copia creada
+              // automáticamente en la quincena siguiente.
+              const copiaSiguiente = siguienteSnap.docs.find(
+                (documento) => {
+                  const h = documento.data();
+
+                  return (
+                    h.origen_cierre === quincena &&
+                    normalizarNombre(h.nombre) === clave &&
+                    h.hostal === existente.hostal
+                  );
+                }
+              );
+
+              if (copiaSiguiente) {
+                transaction.delete(copiaSiguiente.ref);
+              }
 
               existente.fecha_salida =
                 fechaLimpia;

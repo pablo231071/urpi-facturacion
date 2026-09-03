@@ -65,6 +65,7 @@ module.exports = async function handler(req, res) {
           importado: Boolean(f.importado),
           tipoManual: f.tipo_manual || '',
           sinSnack: Boolean(f.sin_snack),
+          origenCierre: f.origen_cierre || '',
           orden: Number(f.orden) || 0,
           quincena: f.quincena || ''
         };
