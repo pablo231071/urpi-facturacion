@@ -21,6 +21,7 @@ const db = admin.firestore();
 
 function normalizarNombre(valor) {
   return String(valor || '')
+    .replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
@@ -213,20 +214,20 @@ module.exports =
                 )
               );
 
-            const existentes =
-              new Set(
-                destinoSnap.docs.map(
-                  (documento) => {
-                    const huesped =
-                      documento.data();
+            const idsExistentes = new Set();
+            const nombresExistentes = new Set();
 
-                    return (
-                      `${normalizarNombre(huesped.nombre)}|` +
-                      `${huesped.hostal || ''}`
-                    );
-                  }
-                )
+            destinoSnap.docs.forEach((documento) => {
+              const huesped = documento.data();
+
+              if (huesped.estancia_id) {
+                idsExistentes.add(huesped.estancia_id);
+              }
+
+              nombresExistentes.add(
+                `${normalizarNombre(huesped.nombre)}|${huesped.hostal || ''}`
               );
+            });
 
             const activos =
               origenSnap.docs.filter(
@@ -252,11 +253,16 @@ module.exports =
               const huesped =
                 documento.data();
 
-              const clave =
-                `${normalizarNombre(huesped.nombre)}|` +
-                `${huesped.hostal || ''}`;
+              const idEstancia =
+                huesped.estancia_id || documento.id;
 
-              if (existentes.has(clave)) {
+              const claveNombre =
+                `${normalizarNombre(huesped.nombre)}|${huesped.hostal || ''}`;
+
+              if (
+                idsExistentes.has(idEstancia) ||
+                nombresExistentes.has(claveNombre)
+              ) {
                 yaExistian++;
                 continue;
               }
@@ -277,6 +283,8 @@ module.exports =
                     normalizarNombre(
                       huesped.nombre
                     ),
+
+                  estancia_id: idEstancia,
 
                   fnac:
                     huesped.fnac || '',
@@ -342,7 +350,8 @@ module.exports =
                 }
               );
 
-              existentes.add(clave);
+              idsExistentes.add(idEstancia);
+              nombresExistentes.add(claveNombre);
               traspasados++;
             }
 
