@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 if (!admin.apps.length) {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -18,6 +19,7 @@ const db = admin.firestore();
 
 function normalizarNombre(valor) {
   return String(valor || '')
+    .replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
@@ -113,6 +115,7 @@ module.exports = async function handler(req, res) {
       return {
         id,
         nombre: nombre.slice(0, 200),
+        nombre_normalizado: normalizarNombre(nombre),
         fnac: String(h.fnac || ''),
         hostal: hostal.slice(0, 100),
         fecha_entrada: String(h.fechaEntrada || ''),
@@ -126,6 +129,7 @@ module.exports = async function handler(req, res) {
         tipo_manual: String(h.tipoManual || ''),
         sin_snack: Boolean(h.sinSnack),
         origen_cierre: String(h.origenCierre || ''),
+        estancia_id: String(h.estanciaId || ''),
         quincena: quincenaLimpia
       };
     });
@@ -154,6 +158,7 @@ module.exports = async function handler(req, res) {
     // automatización haya registrado entretanto.
     datosValidos.forEach((h) => {
       const anterior = existentesPorId.get(h.id);
+      h.estancia_id = h.estancia_id || anterior?.estancia_id || h.id || crypto.randomUUID();
       if (
         anterior?.fecha_salida &&
         !h.fecha_salida &&
@@ -173,7 +178,7 @@ module.exports = async function handler(req, res) {
     const salidasDelPeriodo = new Set(
       datosValidos
         .filter((h) => h.fecha_salida && h.fecha_salida <= periodo.fin)
-        .map((h) => `${normalizarNombre(h.nombre)}|${h.hostal}`)
+        .map((h) => h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal}`)
     );
 
     const operaciones = [];
@@ -194,7 +199,7 @@ module.exports = async function handler(req, res) {
 
     siguienteSnap.docs.forEach((doc) => {
       const h = doc.data();
-      const clave = `${normalizarNombre(h.nombre)}|${h.hostal || ''}`;
+      const clave = h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal || ''}`;
 
       if (
         h.origen_cierre === quincenaLimpia &&
