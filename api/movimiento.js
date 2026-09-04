@@ -19,11 +19,37 @@ const db = admin.firestore();
 
 function normalizarNombre(valor) {
   return String(valor || '')
+    .replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
+}
+
+function distancia(a, b) {
+  const anterior = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = anterior[0];
+    anterior[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const arriba = anterior[j];
+      anterior[j] = Math.min(
+        anterior[j] + 1,
+        anterior[j - 1] + 1,
+        diagonal + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      diagonal = arriba;
+    }
+  }
+  return anterior[b.length];
+}
+
+function nombresCoinciden(a, b) {
+  const na = normalizarNombre(a);
+  const nb = normalizarNombre(b);
+  if (na === nb) return true;
+  return Math.min(na.length, nb.length) >= 10 && distancia(na, nb) <= 1;
 }
 
 function quincenaDeFecha(fecha) {
@@ -266,9 +292,7 @@ module.exports = async function handler(req, res) {
 
             let existente =
               registros.find((huesped) =>
-                normalizarNombre(
-                  huesped.nombre
-                ) === clave &&
+                nombresCoinciden(huesped.nombre, persona.nombre) &&
                 !huesped.fecha_salida &&
                 huesped.hostal === hostalLimpio
               );
@@ -276,9 +300,7 @@ module.exports = async function handler(req, res) {
             if (!existente) {
               existente =
                 registros.find((huesped) =>
-                  normalizarNombre(
-                    huesped.nombre
-                  ) === clave &&
+                    nombresCoinciden(huesped.nombre, persona.nombre) &&
                   !huesped.fecha_salida
                 );
             }
@@ -297,6 +319,9 @@ module.exports = async function handler(req, res) {
                 existente.ref,
                 {
                   fecha_salida: fechaLimpia,
+
+                  estancia_id:
+                    existente.estancia_id || existente.id,
 
                   picnic: Boolean(
                     existente.picnic ||
@@ -318,7 +343,10 @@ module.exports = async function handler(req, res) {
 
                   return (
                     h.origen_cierre === quincena &&
-                    normalizarNombre(h.nombre) === clave &&
+                    (
+                      (existente.estancia_id && h.estancia_id === existente.estancia_id) ||
+                      nombresCoinciden(h.nombre, persona.nombre)
+                    ) &&
                     h.hostal === existente.hostal
                   );
                 }
@@ -344,6 +372,9 @@ module.exports = async function handler(req, res) {
               existente.hostal === hostalLimpio
             ) {
               const cambios = {
+                estancia_id:
+                  existente.estancia_id || existente.id,
+
                 actualizado_en:
                   admin.firestore.FieldValue
                     .serverTimestamp()
@@ -409,6 +440,9 @@ module.exports = async function handler(req, res) {
               nombre: persona.nombre,
 
               nombre_normalizado: clave,
+
+              estancia_id:
+                existente?.estancia_id || nuevaRef.id,
 
               fnac: persona.fnac,
 
