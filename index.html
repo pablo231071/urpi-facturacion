@@ -587,6 +587,20 @@ function pd(s){
   if(m)return new Date(parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]),12,0,0);
   return null;
 }
+function normNombre(s){return String(s||'').replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i,'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();}
+function distanciaNombre(a,b){
+  const fila=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+    let diagonal=fila[0];fila[0]=i;
+    for(let j=1;j<=b.length;j++){
+      const arriba=fila[j];
+      fila[j]=Math.min(fila[j]+1,fila[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));
+      diagonal=arriba;
+    }
+  }
+  return fila[b.length];
+}
+function mismoNombre(a,b){const na=normNombre(a),nb=normNombre(b);return na===nb||(Math.min(na.length,nb.length)>=10&&distanciaNombre(na,nb)<=1);}
 function edad(fnac,ref){
   const d=pd(fnac);
   if(!d||isNaN(d.getTime()))return 99;
@@ -1175,9 +1189,8 @@ async function confirmar(){
   if(tipo==='INICIO'){
     const alertas=[];
     personas.forEach(p=>{
-      const key=p.nombre.toUpperCase().trim();
       const enOtroHostal=S.huespedes.find(h=>
-        h.nombre.toUpperCase().trim()===key &&
+        mismoNombre(h.nombre,p.nombre) &&
         h.hostal!==hostal &&
         !h.fechaSalida  // solo los que están activos (sin fecha de salida)
       );
@@ -1192,9 +1205,8 @@ async function confirmar(){
   }
 
   personas.forEach(p=>{
-    const key=p.nombre.toUpperCase().trim();
     const hostalBusqueda=tipo==='TRASLADO'&&traslado?traslado.origen:hostal;
-    const candidatos=S.huespedes.filter(h=>h.nombre.toUpperCase().trim()===key&&h.hostal===hostalBusqueda);
+    const candidatos=S.huespedes.filter(h=>mismoNombre(h.nombre,p.nombre)&&h.hostal===hostalBusqueda);
     const ex=candidatos.find(h=>!h.fechaSalida)||candidatos[candidatos.length-1];
 
     if(tipo==='TRASLADO'&&traslado){
@@ -1208,8 +1220,10 @@ async function confirmar(){
         ex.picnic=false;
       }
       // Crear nueva entrada en hostal destino desde el día del traslado
+      const nuevoId=Date.now()+Math.random();
       S.huespedes.push({
-        id:Date.now()+Math.random(),
+        id:nuevoId,
+        estanciaId:ex?.estanciaId||String(ex?.id||nuevoId),
         nombre:p.nombre,fnac:p.fnac,
         hostal:traslado.destino||hostal,
         fechaEntrada:fecha,fechaSalida:'',
@@ -1262,11 +1276,10 @@ async function addManual(){
     idModificado=String(window._editandoId);
     window._editandoId=null;
   } else {
-    const clave=nombre.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();
     const ex=S.huespedes.find(h=>
       h.hostal===hostal&&
       !h.fechaSalida&&
-      String(h.nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase()===clave
+      mismoNombre(h.nombre,nombre)
     );
     if(ex){Object.assign(ex,datos);idModificado=String(ex.id);}
     else{
@@ -2241,6 +2254,7 @@ async function cerrarQuincena(){
     picnic:false,
     snackDias:0,
     origenCierre:qKey(),
+    estanciaId:h.estanciaId||String(h.id),
     quincena:`${nAno}_${nMes}_${nTipo}`
   }));
 
