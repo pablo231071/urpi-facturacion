@@ -66,6 +66,7 @@ module.exports = async function handler(req, res) {
           tipoManual: f.tipo_manual || '',
           sinSnack: Boolean(f.sin_snack),
           origenCierre: f.origen_cierre || '',
+          estanciaId: f.estancia_id || doc.id,
           orden: Number(f.orden) || 0,
           quincena: f.quincena || ''
         };
