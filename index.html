@@ -404,14 +404,15 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     <div class="g4" style="margin-bottom:10px">
       <div class="fg"><label>Nº factura inicial</label><input type="number" id="cfgNum" value="3809"></div>
       <div class="fg"><label>Año (2 dígitos)</label><input type="number" id="cfgAno" value="26"></div>
-      <div class="fg"><label>Tarifa diaria (€)</label><input type="number" id="cfgTar" value="40" step="0.01"></div>
+      <div class="fg"><label>Pensión completa (€/día)</label><input type="number" id="cfgTar" value="43.58" step="0.01"></div>
       <div class="fg"><label>IGIC (%)</label><input type="number" id="cfgIgic" value="7" step="0.1"></div>
     </div>
     <div class="g3">
-      <div class="fg"><label>Min iniciación (€/día)</label><input type="number" id="cfgMin" value="4.59" step="0.01"></div>
-      <div class="fg"><label>Snack escolar (€/día)</label><input type="number" id="cfgSnack" value="2" step="0.01"></div>
-      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="4.67" step="0.01"></div>
+      <div class="fg"><label>Menú infantil (€/día)</label><input type="number" id="cfgMin" value="5.00" step="0.01"></div>
+      <div class="fg"><label>Snack escolar (€/día)</label><input type="number" id="cfgSnack" value="2.18" step="0.01"></div>
+      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="5.08" step="0.01"></div>
     </div>
+    <div class="tip" id="tarifaPeriodo">Tarifas aplicables a la quincena seleccionada.</div>
     <div class="btn-row right" style="margin-top:14px">
       <button class="btn btn-dark" onclick="verPreview()">Vista previa</button>
       <button class="btn btn-primary" onclick="generarExcel()">Generar y descargar Excel →</button>
@@ -518,6 +519,27 @@ function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
 // qKey: clave de quincena para filtrar en Firestore
 function qKey(){return `${S.qAno}_${S.qMes}_${S.qTipo}`;}
 
+const TARIFAS_HASTA_AGOSTO_2026={tar:40,min:4.59,snack:2,picnic:4.67};
+const TARIFAS_DESDE_SEPTIEMBRE_2026={tar:43.58,min:5,snack:2.18,picnic:5.08};
+function usaTarifasSeptiembre2026(){
+  return S.qAno>2026||(S.qAno===2026&&S.qMes>=9);
+}
+function aplicarTarifasPeriodo(){
+  const nuevas=usaTarifasSeptiembre2026();
+  const t=nuevas?TARIFAS_DESDE_SEPTIEMBRE_2026:TARIFAS_HASTA_AGOSTO_2026;
+  const valores={cfgTar:t.tar,cfgMin:t.min,cfgSnack:t.snack,cfgPicnic:t.picnic};
+  Object.entries(valores).forEach(([id,valor])=>{
+    const el=document.getElementById(id);
+    if(el)el.value=Number(valor).toFixed(2);
+  });
+  const aviso=document.getElementById('tarifaPeriodo');
+  if(aviso){
+    aviso.textContent=nuevas
+      ?'Tarifas nuevas vigentes desde la 1.ª quincena de septiembre de 2026. Importes antes de IGIC.'
+      :'Tarifas anteriores, conservadas para agosto de 2026 y periodos previos. Importes antes de IGIC.';
+  }
+}
+
 async function guardar(opciones={}){
   try{
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
@@ -571,6 +593,7 @@ async function cambiarQ(){
   S.qIni=S.qTipo===1?new Date(S.qAno,S.qMes-1,1):new Date(S.qAno,S.qMes-1,16);
   S.qFin=S.qTipo===1?new Date(S.qAno,S.qMes-1,15):new Date(S.qAno,S.qMes-1,dm);
   document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+  aplicarTarifasPeriodo();
   await cargar();
 }
 
@@ -1344,10 +1367,10 @@ function calcDias(h){
 }
 function getTarifas(){
   return{
-    tar:parseFloat(document.getElementById('cfgTar')?.value||40),
-    pMin:parseFloat(document.getElementById('cfgMin')?.value||4.59),
-    pSnack:parseFloat(document.getElementById('cfgSnack')?.value||2),
-    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||4.67),
+    tar:parseFloat(document.getElementById('cfgTar')?.value||(usaTarifasSeptiembre2026()?43.58:40)),
+    pMin:parseFloat(document.getElementById('cfgMin')?.value||(usaTarifasSeptiembre2026()?5:4.59)),
+    pSnack:parseFloat(document.getElementById('cfgSnack')?.value||(usaTarifasSeptiembre2026()?2.18:2)),
+    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||(usaTarifasSeptiembre2026()?5.08:4.67)),
     igicPct:(parseFloat(document.getElementById('cfgIgic')?.value||7))/100
   };
 }
@@ -2295,6 +2318,7 @@ async function cerrarQuincena(){
   document.getElementById('sM').value=nMes;
   document.getElementById('sA').value=nAno;
   document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+  aplicarTarifasPeriodo();
 
   // Asignar los nuevos huéspedes y guardar en la nueva quincena
   S.huespedes=nuevosH;
