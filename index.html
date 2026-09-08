@@ -623,7 +623,35 @@ function tipoH(fnac,h){
   // Sin datos: adulto por defecto
   return 'adulto';
 }
-function calcLectivos(ini,fin){
+function edadParaSnack(h,ref){
+  if(!h)return null;
+  // Un tipo manual explícito siempre tiene prioridad cuando no hay fecha de nacimiento.
+  if(!h.fnac&&h.tipoManual==='bebe')return 2;
+  if(!h.fnac&&h.tipoManual==='adulto')return 18;
+  if(h.fnac){
+    const e=edad(h.fnac,ref);
+    return Number.isFinite(e)?e:null;
+  }
+  const e=Number(h.ageN);
+  if(Number.isFinite(e)&&e>=0)return e;
+  // Los Excel antiguos solo indican "Menor", sin fecha de nacimiento.
+  if(h.tipoManual==='menor')return 17;
+  return null;
+}
+function esDiaLectivoSnack(d,h){
+  const e=edadParaSnack(h,d);
+  // El snack escolar corresponde desde los 3 años hasta los 17, ambos incluidos.
+  if(e===null||e<3||e>17)return false;
+
+  // Inicio oficial del curso 2026/27 en Canarias. La aplicación no guarda el
+  // nivel educativo, por lo que se aplica el nivel ordinario correspondiente a la edad.
+  if(d.getFullYear()===2026&&d.getMonth()===8){
+    const diaInicio=e<=11?9:e<=15?10:11;
+    if(d.getDate()<diaInicio)return false;
+  }
+  return true;
+}
+function calcLectivos(ini,fin,h){
   if(!ini||!fin||!S.qIni||!S.qFin)return 0;
   // El dia de entrada NUNCA cuenta para snack — siempre empieza el dia siguiente
   // Si entró antes de la quincena, el snack empieza desde qIni (primer dia quincena)
@@ -641,7 +669,7 @@ function calcLectivos(ini,fin){
   let n=0;const d=new Date(desdeDate);
   while(d<=hasta){
     const dow=d.getDay(),iso=fmtISO(d);
-    if(dow!==0&&dow!==6&&!S.festivos.includes(iso))n++;
+    if(dow!==0&&dow!==6&&!S.festivos.includes(iso)&&esDiaLectivoSnack(d,h))n++;
     d.setDate(d.getDate()+1);
   }
   return n;
@@ -1002,7 +1030,7 @@ function procesarCorreoUnico(txt){
     if(e>=3&&e<18){
       const entD=tipo==='INICIO'?pd(fecha):S.qIni;
       const salD=tipo==='FIN'?pd(fecha):S.qFin;
-      if(entD&&salD)p.snackDias=calcLectivos(entD,salD);
+      if(entD&&salD)p.snackDias=calcLectivos(entD,salD,p);
     }
   });
   return{tipo,hostal,fecha,personas,picnicG};
@@ -1333,8 +1361,8 @@ function calcImp(h){
   const minI=minDiasCalc*pMin;
   // Recalcular snack automáticamente para menores escolarizados
   let snackDias=h.snackDias||0;
-  if(menor&&!bebe&&ini&&fin&&!h.sinSnack){
-    snackDias=calcLectivos(ini,fin);
+  if(ini&&fin&&!h.sinSnack&&(h.fnac||menor)){
+    snackDias=calcLectivos(ini,fin,h);
   } else if(h.sinSnack){
     snackDias=0;
   }
@@ -1863,7 +1891,7 @@ async function generarExcel(){
       const minDiasCalc=h.minDias||0;
       const minI=minDiasCalc*pMin;
       // Recalcular snack con festivos actuales para menores
-      const snackDiasCalc=h.sinSnack?0:(menor&&!bebe&&ini&&fin?calcLectivos(ini,fin):(h.snackDias||0));
+      const snackDiasCalc=h.sinSnack?0:((h.fnac||menor)&&ini&&fin?calcLectivos(ini,fin,h):(h.snackDias||0));
       const snackI=snackDiasCalc*pSnack;
       const base=Math.round((aloj+minI+snackI)*100)/100;
       const igic=Math.round(base*igicPct*100)/100;
