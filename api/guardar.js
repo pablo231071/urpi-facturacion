@@ -6,9 +6,7 @@ if (!admin.apps.length) {
     throw new Error('Falta la variable FIREBASE_SERVICE_ACCOUNT');
   }
 
-  const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT
-  );
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -143,103 +141,109 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Una quincena de URPI está muy por debajo de este límite. Mantener toda
+    // la operación en una sola transacción evita que un guardado manual pueda
+    // sobrescribir un FIN registrado por la automatización entre lectura/escritura.
+    if (datosValidos.length + eliminarIds.length > 400) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Demasiados registros para guardar de forma segura en una sola operación'
+      });
+    }
+
     const col = db.collection('huespedes');
-
-    const snap = await col
-      .where('quincena', '==', quincenaLimpia)
-      .get();
-
-    const existentesPorId = new Map(
-      snap.docs.map((doc) => [doc.id, doc.data()])
-    );
-    const limpiarSalida = new Set(permitirLimpiarSalidaIds.map(String));
-
-    // Una pantalla antigua no debe borrar una salida que la
-    // automatización haya registrado entretanto.
-    datosValidos.forEach((h) => {
-      const anterior = existentesPorId.get(h.id);
-      h.estancia_id = h.estancia_id || anterior?.estancia_id || h.id || crypto.randomUUID();
-      if (
-        anterior?.fecha_salida &&
-        !h.fecha_salida &&
-        !limpiarSalida.has(h.id)
-      ) {
-        h.fecha_salida = anterior.fecha_salida;
-      }
-    });
-
-    // Si se registra una salida después de haber cerrado la quincena,
-    // retirar la copia que el cierre creó en la quincena siguiente.
     const periodo = datosQuincena(quincenaLimpia);
-    const siguienteSnap = await col
-      .where('quincena', '==', periodo.siguiente)
-      .get();
-
-    const salidasDelPeriodo = new Set(
-      datosValidos
-        .filter((h) => h.fecha_salida && h.fecha_salida <= periodo.fin)
-        .map((h) => h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal}`)
-    );
-
-    const operaciones = [];
-
+    const limpiarSalida = new Set(permitirLimpiarSalidaIds.map(String));
     const idsAEliminar = new Set(eliminarIds.map(String));
 
-    snap.docs.forEach((doc) => {
-      if (
-        idsAEliminar.has(doc.id) ||
-        (reemplazar && !idsActuales.has(doc.id))
-      ) {
-        operaciones.push({
-          tipo: 'delete',
-          ref: doc.ref
-        });
-      }
-    });
+    const resultado = await db.runTransaction(async (transaction) => {
+      // Todas las lecturas se hacen dentro de la misma transacción. Si
+      // Activepieces modifica alguno de estos documentos mientras se guarda,
+      // Firestore reintenta la operación con el estado más reciente.
+      const snap = await transaction.get(
+        col.where('quincena', '==', quincenaLimpia)
+      );
 
-    siguienteSnap.docs.forEach((doc) => {
-      const h = doc.data();
-      const clave = h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal || ''}`;
+      const siguienteSnap = await transaction.get(
+        col.where('quincena', '==', periodo.siguiente)
+      );
 
-      if (
-        h.origen_cierre === quincenaLimpia &&
-        salidasDelPeriodo.has(clave)
-      ) {
-        operaciones.push({
-          tipo: 'delete',
-          ref: doc.ref
-        });
-      }
-    });
+      const existentesPorId = new Map(
+        snap.docs.map((doc) => [doc.id, doc.data()])
+      );
 
-    datosValidos.forEach((h) => {
-      operaciones.push({
-        tipo: 'set',
-        ref: col.doc(h.id),
-        datos: h
+      const datosFinales = datosValidos.map((h) => {
+        const actual = { ...h };
+        const anterior = existentesPorId.get(actual.id);
+
+        actual.estancia_id =
+          actual.estancia_id || anterior?.estancia_id || actual.id || crypto.randomUUID();
+
+        // Protección principal: una pantalla que se cargó antes de recibir un
+        // correo FIN nunca puede borrar esa salida, salvo que el usuario haya
+        // pedido expresamente limpiarla desde la interfaz.
+        if (
+          anterior?.fecha_salida &&
+          !actual.fecha_salida &&
+          !limpiarSalida.has(actual.id)
+        ) {
+          actual.fecha_salida = anterior.fecha_salida;
+        }
+
+        return actual;
       });
-    });
 
-    // Firestore admite un máximo de 500 operaciones por batch.
-    const BATCH_SIZE = 450;
+      const salidasDelPeriodo = new Set(
+        datosFinales
+          .filter((h) => h.fecha_salida && h.fecha_salida <= periodo.fin)
+          .map((h) =>
+            h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal}`
+          )
+      );
 
-    for (let i = 0; i < operaciones.length; i += BATCH_SIZE) {
-      const batch = db.batch();
+      let eliminados = 0;
+      let copiasRetiradas = 0;
 
-      operaciones.slice(i, i + BATCH_SIZE).forEach((operacion) => {
-        if (operacion.tipo === 'delete') {
-          batch.delete(operacion.ref);
-        } else {
-          batch.set(operacion.ref, operacion.datos);
+      snap.docs.forEach((doc) => {
+        if (
+          idsAEliminar.has(doc.id) ||
+          (reemplazar && !idsActuales.has(doc.id))
+        ) {
+          transaction.delete(doc.ref);
+          eliminados++;
         }
       });
 
-      await batch.commit();
-    }
+      siguienteSnap.docs.forEach((doc) => {
+        const h = doc.data();
+        const clave =
+          h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal || ''}`;
+
+        if (
+          h.origen_cierre === quincenaLimpia &&
+          salidasDelPeriodo.has(clave)
+        ) {
+          transaction.delete(doc.ref);
+          copiasRetiradas++;
+        }
+      });
+
+      datosFinales.forEach((h) => {
+        transaction.set(col.doc(h.id), h);
+      });
+
+      return {
+        guardados: datosFinales.length,
+        eliminados,
+        copiasRetiradas
+      };
+    });
 
     return res.status(200).json({
       ok: true,
-      guardados: datosValidos.length
+      guardados: resultado.guardados,
+      eliminados: resultado.eliminados,
+      copiasRetiradas: resultado.copiasRetiradas
     });
   } catch (error) {
     console.error('Error al guardar huéspedes:', error);
