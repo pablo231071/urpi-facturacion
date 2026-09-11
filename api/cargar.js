@@ -47,35 +47,77 @@ module.exports = async function handler(req, res) {
       .where('quincena', '==', quincena)
       .get();
 
-    const huespedes = snap.docs
-      .map((doc) => {
-        const f = doc.data();
+    const todos = snap.docs.map((doc) => {
+      const f = doc.data();
 
-        return {
-          id: doc.id,
-          nombre: f.nombre || '',
-          fnac: f.fnac || '',
-          hostal: f.hostal || '',
-          fechaEntrada: f.fecha_entrada || '',
-          fechaSalida: f.fecha_salida || '',
-          cabeza: Boolean(f.cabeza),
-          picnic: Boolean(f.picnic),
-          minDias: Number(f.min_dias) || 0,
-          snackDias: Number(f.snack_dias) || 0,
-          importado: Boolean(f.importado),
-          tipoManual: f.tipo_manual || '',
-          sinSnack: Boolean(f.sin_snack),
-          origenCierre: f.origen_cierre || '',
-          estanciaId: f.estancia_id || doc.id,
-          orden: Number(f.orden) || 0,
-          quincena: f.quincena || ''
-        };
-      })
-      .sort((a, b) => a.orden - b.orden);
+      return {
+        id: doc.id,
+        nombre: f.nombre || '',
+        fnac: f.fnac || '',
+        hostal: f.hostal || '',
+        fechaEntrada: f.fecha_entrada || '',
+        fechaSalida: f.fecha_salida || '',
+        cabeza: Boolean(f.cabeza),
+        picnic: Boolean(f.picnic),
+        minDias: Number(f.min_dias) || 0,
+        snackDias: Number(f.snack_dias) || 0,
+        importado: Boolean(f.importado),
+        tipoManual: f.tipo_manual || '',
+        sinSnack: Boolean(f.sin_snack),
+        origenCierre: f.origen_cierre || '',
+        estanciaId: f.estancia_id || '',
+        orden: Number(f.orden) || 0,
+        quincena: f.quincena || ''
+      };
+    });
+
+    // Protección contra duplicados creados por cierres anteriores:
+    // si dos documentos representan exactamente la misma estancia_id dentro
+    // de la misma quincena, solo se muestra una copia. No deduplicamos por
+    // nombre para evitar borrar por error a homónimos legítimos.
+    const porEstancia = new Map();
+    const sinEstancia = [];
+
+    for (const h of todos) {
+      const clave = String(h.estanciaId || '').trim();
+
+      if (!clave) {
+        sinEstancia.push(h);
+        continue;
+      }
+
+      const anterior = porEstancia.get(clave);
+
+      if (!anterior) {
+        porEstancia.set(clave, h);
+        continue;
+      }
+
+      // Conservar preferentemente la copia que contenga más información.
+      const puntuacion = (x) =>
+        (x.fechaSalida ? 8 : 0) +
+        (x.fechaEntrada ? 4 : 0) +
+        (x.fnac ? 2 : 0) +
+        (x.cabeza ? 1 : 0) +
+        (x.sinSnack ? 1 : 0) +
+        (x.minDias ? 1 : 0) +
+        (x.snackDias ? 1 : 0);
+
+      if (puntuacion(h) > puntuacion(anterior)) {
+        porEstancia.set(clave, h);
+      }
+    }
+
+    const huespedes = [
+      ...porEstancia.values(),
+      ...sinEstancia
+    ].sort((a, b) => a.orden - b.orden);
 
     return res.status(200).json({
       ok: true,
-      huespedes
+      huespedes,
+      totalDocumentos: todos.length,
+      duplicadosOcultos: todos.length - huespedes.length
     });
   } catch (error) {
     console.error('Error al cargar huéspedes:', error);
