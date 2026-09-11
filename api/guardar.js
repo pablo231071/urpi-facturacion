@@ -81,27 +81,75 @@ module.exports = async function handler(req, res) {
     const resultado = await db.runTransaction(async (transaction) => {
       const snap = await transaction.get(col.where('quincena','==',quincenaLimpia));
       const existentesPorId = new Map(snap.docs.map((doc) => [doc.id, doc.data()]));
+      const existentePorEstancia = new Map();
 
-      const datosFinales = datosValidos.map((h) => {
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        const estancia = String(data.estancia_id || '').trim();
+        if (estancia && !existentePorEstancia.has(estancia)) {
+          existentePorEstancia.set(estancia, { id:doc.id, data, ref:doc.ref });
+        }
+      }
+
+      const vistosEnPeticion = new Set();
+      const datosFinales = [];
+      let duplicadosEvitados = 0;
+
+      for (const h of datosValidos) {
         const actual = { ...h };
-        const anterior = existentesPorId.get(actual.id);
-        actual.estancia_id = actual.estancia_id || anterior?.estancia_id || actual.id || crypto.randomUUID();
+        const anteriorMismoId = existentesPorId.get(actual.id);
+        actual.estancia_id = actual.estancia_id || anteriorMismoId?.estancia_id || actual.id || crypto.randomUUID();
+
+        // Si la propia petición trae dos copias de la misma estancia, solo
+        // procesamos la primera. Esto neutraliza dobles clics y cierres repetidos.
+        if (vistosEnPeticion.has(actual.estancia_id)) {
+          duplicadosEvitados++;
+          continue;
+        }
+        vistosEnPeticion.add(actual.estancia_id);
+
+        const existenteMismaEstancia = existentePorEstancia.get(actual.estancia_id);
+
+        // Si llega con un ID nuevo pero la estancia ya existe en esta quincena,
+        // NO creamos otro documento. Usamos el documento existente como canon.
+        // Es precisamente el patrón que generaba el cierre manual antiguo.
+        if (existenteMismaEstancia && existenteMismaEstancia.id !== actual.id) {
+          const previa = existenteMismaEstancia.data;
+          const canon = {
+            ...actual,
+            id: existenteMismaEstancia.id,
+            estancia_id: actual.estancia_id
+          };
+
+          // Nunca borrar una salida real ya registrada.
+          if (previa.fecha_salida && !canon.fecha_salida) {
+            canon.fecha_salida = previa.fecha_salida;
+          }
+
+          // Conservar la entrada existente si la petición de cierre intenta
+          // sustituirla por una fecha genérica y el registro ya estaba creado.
+          if (previa.fecha_entrada) {
+            canon.fecha_entrada = previa.fecha_entrada;
+          }
+
+          datosFinales.push(canon);
+          duplicadosEvitados++;
+          continue;
+        }
 
         // Una pantalla antigua nunca puede borrar una salida registrada por
-        // automatización, salvo que el usuario lo pida expresamente al editar.
-        if (anterior?.fecha_salida && !actual.fecha_salida && !limpiarSalida.has(actual.id)) {
-          actual.fecha_salida = anterior.fecha_salida;
+        // automatización, salvo petición manual explícita sobre ese mismo ID.
+        if (anteriorMismoId?.fecha_salida && !actual.fecha_salida && !limpiarSalida.has(actual.id)) {
+          actual.fecha_salida = anteriorMismoId.fecha_salida;
         }
-        return actual;
-      });
+
+        datosFinales.push(actual);
+      }
 
       let eliminados = 0;
 
-      // INVARIANTE DE SEGURIDAD:
-      // guardar una lista nunca implica que los documentos que no aparecen
-      // en esa lista deban borrarse. Una pestaña desfasada o un cierre no
-      // puede vaciar una quincena. Solo se elimina por ID explícito y siempre
-      // dentro de la misma quincena.
+      // Guardar una lista nunca implica borrar los documentos ausentes.
+      // Solo se elimina por ID explícito y dentro de la misma quincena.
       for (const doc of snap.docs) {
         if (idsAEliminar.has(doc.id)) {
           transaction.delete(doc.ref);
@@ -111,13 +159,14 @@ module.exports = async function handler(req, res) {
 
       for (const h of datosFinales) transaction.set(col.doc(h.id), h);
 
-      return { guardados:datosFinales.length, eliminados };
+      return { guardados:datosFinales.length, eliminados, duplicadosEvitados };
     });
 
     return res.status(200).json({
       ok:true,
       guardados:resultado.guardados,
       eliminados:resultado.eliminados,
+      duplicadosEvitados:resultado.duplicadosEvitados,
       copiasRetiradas:0,
       borradoMasivoDeshabilitado:true
     });
