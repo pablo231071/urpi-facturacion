@@ -37,6 +37,19 @@ function puntuacion(h) {
   );
 }
 
+function esCabecera(nombre) {
+  const n = normalizarTexto(nombre).replace(/[.:]/g, '');
+  return new Set([
+    'FECHA NAC',
+    'FECHA NACIMIENTO',
+    'FECHA DE NACIMIENTO',
+    'NOMBRE',
+    'NOMBRES',
+    'APELLIDOS',
+    'NOMBRE Y APELLIDOS'
+  ]).has(n);
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -47,20 +60,14 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method !== 'GET') {
-    return res.status(405).json({
-      ok: false,
-      error: 'Método no permitido'
-    });
+    return res.status(405).json({ ok: false, error: 'Método no permitido' });
   }
 
   try {
     const quincena = String(req.query.quincena || '').trim();
 
     if (!/^\d{4}_(?:[1-9]|1[0-2])_[12]$/.test(quincena)) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Quincena no válida'
-      });
+      return res.status(400).json({ ok: false, error: 'Quincena no válida' });
     }
 
     const snap = await db
@@ -70,7 +77,6 @@ module.exports = async function handler(req, res) {
 
     const todos = snap.docs.map((doc) => {
       const f = doc.data();
-
       return {
         id: doc.id,
         nombre: f.nombre || '',
@@ -92,20 +98,17 @@ module.exports = async function handler(req, res) {
       };
     });
 
-    // Primera capa: consolidar documentos con la misma estancia_id.
+    // 1) Misma estancia_id: conservar la copia más completa.
     const porEstancia = new Map();
     const candidatos = [];
 
     for (const h of todos) {
       const claveEstancia = String(h.estanciaId || '').trim();
-
       if (!claveEstancia) {
         candidatos.push(h);
         continue;
       }
-
       const anterior = porEstancia.get(claveEstancia);
-
       if (!anterior || puntuacion(h) > puntuacion(anterior)) {
         porEstancia.set(claveEstancia, h);
       }
@@ -113,13 +116,8 @@ module.exports = async function handler(req, res) {
 
     candidatos.push(...porEstancia.values());
 
-    // Segunda capa: algunos cierres antiguos generaron IDs de estancia nuevos
-    // para la misma persona. Consolidamos solo copias operativamente exactas:
-    // mismo nombre normalizado, mismo hostal, misma entrada y misma salida.
-    // No se elimina nada de Firestore; únicamente se evita mostrar dos veces
-    // la misma estancia aparente en la interfaz.
-    const porFirma = new Map();
-
+    // 2) Copias exactamente iguales aunque tengan estancia_id distinta.
+    const porFirmaExacta = new Map();
     for (const h of candidatos) {
       const firma = [
         normalizarTexto(h.nombre),
@@ -127,15 +125,44 @@ module.exports = async function handler(req, res) {
         String(h.fechaEntrada || ''),
         String(h.fechaSalida || '')
       ].join('|');
-
-      const anterior = porFirma.get(firma);
-
+      const anterior = porFirmaExacta.get(firma);
       if (!anterior || puntuacion(h) > puntuacion(anterior)) {
-        porFirma.set(firma, h);
+        porFirmaExacta.set(firma, h);
       }
     }
 
-    const huespedes = [...porFirma.values()]
+    const consolidados = [...porFirmaExacta.values()];
+
+    // 3) Error histórico del cierre: si existe la misma persona, hostal y
+    // fecha de entrada con una salida real, una copia automática de cierre
+    // sin salida queda obsoleta y no debe seguir figurando como activa.
+    const firmasConSalida = new Set(
+      consolidados
+        .filter((h) => h.fechaSalida)
+        .map((h) => [
+          normalizarTexto(h.nombre),
+          normalizarTexto(h.hostal),
+          String(h.fechaEntrada || '')
+        ].join('|'))
+    );
+
+    const huespedes = consolidados
+      .filter((h) => {
+        if (esCabecera(h.nombre)) return false;
+
+        const firmaBase = [
+          normalizarTexto(h.nombre),
+          normalizarTexto(h.hostal),
+          String(h.fechaEntrada || '')
+        ].join('|');
+
+        const copiaActivaObsoleta =
+          !h.fechaSalida &&
+          Boolean(h.origenCierre) &&
+          firmasConSalida.has(firmaBase);
+
+        return !copiaActivaObsoleta;
+      })
       .sort((a, b) => a.orden - b.orden);
 
     return res.status(200).json({
@@ -146,7 +173,6 @@ module.exports = async function handler(req, res) {
     });
   } catch (error) {
     console.error('Error al cargar huéspedes:', error);
-
     return res.status(500).json({
       ok: false,
       error: 'No se pudieron cargar los huéspedes'
