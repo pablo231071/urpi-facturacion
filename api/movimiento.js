@@ -101,13 +101,38 @@ module.exports = async function handler(req, res) {
 
     const resultado = await db.runTransaction(async (transaction) => {
       const eventoSnap = await transaction.get(eventoRef);
-      if (eventoSnap.exists) return {duplicado:true,procesados:eventoSnap.data().procesados||[]};
+
+      // Si el mismo correo ya se procesó por completo, no repetimos efectos.
+      // Pero si alguna persona quedó como "no encontrado", permitimos reintentar
+      // únicamente esas personas. Esto cubre el caso real en el que el FIN llega
+      // antes de que el huésped haya sido incorporado/copiado a la quincena.
+      let procesadosPrevios = [];
+      let personasAProcesar = personasLimpias;
+      let esReintento = false;
+
+      if (eventoSnap.exists) {
+        procesadosPrevios = Array.isArray(eventoSnap.data().procesados) ? eventoSnap.data().procesados : [];
+        const pendientes = new Set(
+          procesadosPrevios
+            .filter((p) => p && p.accion === 'no encontrado')
+            .map((p) => normalizarNombre(p.nombre))
+        );
+
+        if (pendientes.size === 0) {
+          return {duplicado:true,procesados:procesadosPrevios};
+        }
+
+        personasAProcesar = personasLimpias.filter((p) => pendientes.has(normalizarNombre(p.nombre)));
+        procesadosPrevios = procesadosPrevios.filter((p) => !pendientes.has(normalizarNombre(p.nombre)));
+        esReintento = true;
+      }
+
       const [quincenaSnap, anteriorSnap, siguienteSnap] = await Promise.all([
         transaction.get(huespedesCol.where('quincena','==',quincena)), transaction.get(huespedesCol.where('quincena','==',anterior)), transaction.get(huespedesCol.where('quincena','==',siguiente))
       ]);
       const registros=convertirSnap(quincenaSnap), registrosAnteriores=convertirSnap(anteriorSnap), procesados=[];
 
-      for (const persona of personasLimpias) {
+      for (const persona of personasAProcesar) {
         const clave=normalizarNombre(persona.nombre);
         let existente=buscarActivo(registros,persona,hostalLimpio), encontradoEn=quincena;
         if(!existente){existente=buscarActivo(registrosAnteriores,persona,hostalLimpio);encontradoEn=anterior;}
@@ -132,9 +157,11 @@ module.exports = async function handler(req, res) {
         const nuevo={id:nuevaRef.id,nombre:persona.nombre,nombre_normalizado:clave,estancia_id:existente?.estancia_id||nuevaRef.id,fnac:persona.fnac,hostal:hostalLimpio,fecha_entrada:fechaLimpia,fecha_salida:'',cabeza:persona.cabeza,picnic:false,min_dias:0,snack_dias:0,importado:false,orden:registros.length,tipo_manual:'',sin_snack:false,quincena,creado_en:admin.firestore.FieldValue.serverTimestamp(),actualizado_en:admin.firestore.FieldValue.serverTimestamp()};
         transaction.set(nuevaRef,nuevo);registros.push({ref:nuevaRef,...nuevo});procesados.push({nombre:persona.nombre,accion:existente?'traslado registrado':'nuevo huésped creado'});
       }
-      transaction.set(eventoRef,{tipo:tipoLimpio,hostal:hostalLimpio,fecha:fechaLimpia,quincena,procesados,creado_en:admin.firestore.FieldValue.serverTimestamp()});
-      return {duplicado:false,procesados};
+
+      const procesadosFinales = [...procesadosPrevios, ...procesados];
+      transaction.set(eventoRef,{tipo:tipoLimpio,hostal:hostalLimpio,fecha:fechaLimpia,quincena,procesados:procesadosFinales,creado_en:eventoSnap.exists?(eventoSnap.data().creado_en||admin.firestore.FieldValue.serverTimestamp()):admin.firestore.FieldValue.serverTimestamp(),actualizado_en:admin.firestore.FieldValue.serverTimestamp()});
+      return {duplicado:false,reintento:esReintento,procesados:procesadosFinales};
     });
-    return res.status(200).json({ok:true,quincena,duplicado:resultado.duplicado,procesados:resultado.procesados});
+    return res.status(200).json({ok:true,quincena,duplicado:resultado.duplicado,reintento:Boolean(resultado.reintento),procesados:resultado.procesados});
   } catch(error){console.error('Error en movimiento:',error);return res.status(500).json({ok:false,error:'No se pudo procesar el movimiento'});}
 };
