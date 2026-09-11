@@ -410,7 +410,7 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     <div class="g3">
       <div class="fg"><label>Menú infantil (€/día)</label><input type="number" id="cfgMin" value="5.00" step="0.01"></div>
       <div class="fg"><label>Snack escolar (€/día)</label><input type="number" id="cfgSnack" value="2.18" step="0.01"></div>
-      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="5.08" step="0.01"></div>
+      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="5.09" step="0.01"></div>
     </div>
     <div class="tip" id="tarifaPeriodo">Tarifas aplicables a la quincena seleccionada.</div>
     <div class="btn-row right" style="margin-top:14px">
@@ -440,10 +440,10 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     <div class="card-title">Datos guardados (localStorage)</div>
     <div style="font-size:11px;color:var(--gray);font-family:'JetBrains Mono',monospace;margin-bottom:12px" id="storageInfo">—</div>
     <div class="btn-row">
-      <button class="btn btn-danger btn-sm" onclick="limpiarQuincena()">Limpiar quincena actual</button>
+      <button class="btn btn-danger btn-sm" onclick="limpiarQuincena()">Limpieza masiva deshabilitada</button>
       <button class="btn btn-sm" onclick="exportarJSON()">Exportar datos JSON</button>
     </div>
-    <div class="tip" style="margin-top:10px">Los datos se guardan automáticamente en este navegador. Si cambias de ordenador o navegador, los datos no estarán disponibles.</div>
+    <div class="tip" style="margin-top:10px">Los huéspedes se guardan en el servidor. En este navegador solo se conservan preferencias locales como festivos y configuración.</div>
   </div>
 </div>
 
@@ -466,8 +466,8 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     </div>
     <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-        <input type="checkbox" id="chkLimpiar" checked>
-        Limpiar huéspedes actuales antes de importar
+        <input type="checkbox" id="chkLimpiar" disabled>
+        Limpieza masiva deshabilitada por seguridad
       </label>
     </div>
   </div>
@@ -478,7 +478,7 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
 <div class="page" id="p-cerrar">
   <div class="page-hdr">
     <div class="page-title">Cerrar quincena</div>
-    <div class="page-sub">Cierra la quincena actual y prepara la siguiente con los huéspedes que continúan</div>
+    <div class="page-sub">El cierre se ejecuta automáticamente en el servidor los días 1 y 16</div>
   </div>
   <div id="msg-cerrar"></div>
   <div class="card">
@@ -489,9 +489,9 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     <div class="card-title">Siguiente quincena</div>
     <div id="cerrarSiguiente" style="margin-bottom:12px"></div>
     <div class="btn-row">
-      <button class="btn btn-primary" onclick="cerrarQuincena()">Cerrar y pasar a la siguiente →</button>
+      <button class="btn btn-primary" onclick="cerrarQuincena()">Cierre automático protegido</button>
     </div>
-    <div class="tip" style="margin-top:10px">Los huéspedes sin fecha de salida se traspasarán automáticamente a la siguiente quincena. Los que tienen fecha de salida en esta quincena no se traspasan.</div>
+    <div class="tip" style="margin-top:10px">El navegador no realiza el cierre ni crea copias. El cierre único y protegido se ejecuta en el servidor mediante la automatización de los días 1 y 16.</div>
   </div>
 </div>
 </div><!-- /main -->
@@ -520,25 +520,9 @@ function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
 function qKey(){return `${S.qAno}_${S.qMes}_${S.qTipo}`;}
 
 const TARIFAS_HASTA_AGOSTO_2026={tar:40,min:4.59,snack:2,picnic:4.67};
-const TARIFAS_DESDE_SEPTIEMBRE_2026={tar:43.58,min:5,snack:2.18,picnic:5.08};
-function usaTarifasSeptiembre2026(){
-  return S.qAno>2026||(S.qAno===2026&&S.qMes>=9);
-}
-function aplicarTarifasPeriodo(){
-  const nuevas=usaTarifasSeptiembre2026();
-  const t=nuevas?TARIFAS_DESDE_SEPTIEMBRE_2026:TARIFAS_HASTA_AGOSTO_2026;
-  const valores={cfgTar:t.tar,cfgMin:t.min,cfgSnack:t.snack,cfgPicnic:t.picnic};
-  Object.entries(valores).forEach(([id,valor])=>{
-    const el=document.getElementById(id);
-    if(el)el.value=Number(valor).toFixed(2);
-  });
-  const aviso=document.getElementById('tarifaPeriodo');
-  if(aviso){
-    aviso.textContent=nuevas
-      ?'Tarifas nuevas vigentes desde la 1.ª quincena de septiembre de 2026. Importes antes de IGIC.'
-      :'Tarifas anteriores, conservadas para agosto de 2026 y periodos previos. Importes antes de IGIC.';
-  }
-}
+const TARIFAS_DESDE_SEPTIEMBRE_2026={tar:43.58,min:5,snack:2.18,picnic:5.09};
+function usaTarifasSeptiembre2026(){return S.qAno>2026||(S.qAno===2026&&S.qMes>=9);}
+function aplicarTarifasPeriodo(){const nuevas=usaTarifasSeptiembre2026();const t=nuevas?TARIFAS_DESDE_SEPTIEMBRE_2026:TARIFAS_HASTA_AGOSTO_2026;const valores={cfgTar:t.tar,cfgMin:t.min,cfgSnack:t.snack,cfgPicnic:t.picnic};Object.entries(valores).forEach(([id,valor])=>{const el=document.getElementById(id);if(el)el.value=Number(valor).toFixed(2);});const aviso=document.getElementById('tarifaPeriodo');if(aviso)aviso.textContent=nuevas?'Tarifas nuevas vigentes desde la 1.ª quincena de septiembre de 2026. Importes antes de IGIC.':'Tarifas anteriores, conservadas para agosto de 2026 y periodos previos. Importes antes de IGIC.';}
 
 async function guardar(opciones={}){
   try{
@@ -550,15 +534,19 @@ async function guardar(opciones={}){
       body:JSON.stringify({
         huespedes:S.huespedes,
         quincena:qKey(),
-        reemplazar:Boolean(opciones.reemplazar),
         eliminarIds:opciones.eliminarIds||[],
         permitirLimpiarSalidaIds:opciones.permitirLimpiarSalidaIds||[]
       })
     });
     const data=await r.json();
     if(!data.ok)throw new Error(data.error||'Error servidor');
-  }catch(e){console.error('Error guardando:',e);}
-  actualizarUI();
+    return data;
+  }catch(e){
+    console.error('Error guardando:',e);
+    throw e;
+  }finally{
+    actualizarUI();
+  }
 }
 
 async function cargar(){
@@ -611,18 +599,7 @@ function pd(s){
   return null;
 }
 function normNombre(s){return String(s||'').replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i,'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();}
-function distanciaNombre(a,b){
-  const fila=Array.from({length:b.length+1},(_,i)=>i);
-  for(let i=1;i<=a.length;i++){
-    let diagonal=fila[0];fila[0]=i;
-    for(let j=1;j<=b.length;j++){
-      const arriba=fila[j];
-      fila[j]=Math.min(fila[j]+1,fila[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));
-      diagonal=arriba;
-    }
-  }
-  return fila[b.length];
-}
+function distanciaNombre(a,b){const fila=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let diagonal=fila[0];fila[0]=i;for(let j=1;j<=b.length;j++){const arriba=fila[j];fila[j]=Math.min(fila[j]+1,fila[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));diagonal=arriba;}}return fila[b.length];}
 function mismoNombre(a,b){const na=normNombre(a),nb=normNombre(b);return na===nb||(Math.min(na.length,nb.length)>=10&&distanciaNombre(na,nb)<=1);}
 function edad(fnac,ref){
   const d=pd(fnac);
@@ -648,26 +625,17 @@ function tipoH(fnac,h){
 }
 function edadParaSnack(h,ref){
   if(!h)return null;
-  // Un tipo manual explícito siempre tiene prioridad cuando no hay fecha de nacimiento.
   if(!h.fnac&&h.tipoManual==='bebe')return 2;
   if(!h.fnac&&h.tipoManual==='adulto')return 18;
-  if(h.fnac){
-    const e=edad(h.fnac,ref);
-    return Number.isFinite(e)?e:null;
-  }
+  if(h.fnac){const e=edad(h.fnac,ref);return Number.isFinite(e)?e:null;}
   const e=Number(h.ageN);
   if(Number.isFinite(e)&&e>=0)return e;
-  // Los Excel antiguos solo indican "Menor", sin fecha de nacimiento.
   if(h.tipoManual==='menor')return 17;
   return null;
 }
 function esDiaLectivoSnack(d,h){
   const e=edadParaSnack(h,d);
-  // El snack escolar corresponde desde los 3 años hasta los 17, ambos incluidos.
   if(e===null||e<3||e>17)return false;
-
-  // Inicio oficial del curso 2026/27 en Canarias. La aplicación no guarda el
-  // nivel educativo, por lo que se aplica el nivel ordinario correspondiente a la edad.
   if(d.getFullYear()===2026&&d.getMonth()===8){
     const diaInicio=e<=11?9:e<=15?10:11;
     if(d.getDate()<diaInicio)return false;
@@ -676,18 +644,9 @@ function esDiaLectivoSnack(d,h){
 }
 function calcLectivos(ini,fin,h){
   if(!ini||!fin||!S.qIni||!S.qFin)return 0;
-  // El dia de entrada NUNCA cuenta para snack — siempre empieza el dia siguiente
-  // Si entró antes de la quincena, el snack empieza desde qIni (primer dia quincena)
   const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
-  const qIni=norm(S.qIni);
-  const entNorm=norm(ini);
-  let desdeDate;
-  if(entNorm<qIni){
-    desdeDate=new Date(qIni); // entró antes de la quincena: desde primer dia quincena
-  } else {
-    // entró durante la quincena (incluyendo el primer dia): snack desde el dia siguiente
-    desdeDate=new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
-  }
+  const qIni=norm(S.qIni),entNorm=norm(ini);
+  const desdeDate=entNorm<qIni?new Date(qIni):new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
   const hasta=norm(new Date(Math.min(fin.getTime(),S.qFin.getTime())));
   let n=0;const d=new Date(desdeDate);
   while(d<=hasta){
@@ -1274,7 +1233,7 @@ async function confirmar(){
       const nuevoId=Date.now()+Math.random();
       S.huespedes.push({
         id:nuevoId,
-        estanciaId:ex?.estanciaId||String(ex?.id||nuevoId),
+        estanciaId:String(nuevoId),
         nombre:p.nombre,fnac:p.fnac,
         hostal:traslado.destino||hostal,
         fechaEntrada:fecha,fechaSalida:'',
@@ -1300,8 +1259,6 @@ async function addManual(){
   const nombre=document.getElementById('mNombre').value.trim();
   if(!nombre){showMsg('manual','Introduce el nombre del huésped','err');return;}
   const hostal=document.getElementById('mHostal').value;
-  const fechaEnt=document.getElementById('mFechaEnt').value;
-  const fechaSal=document.getElementById('mFechaSal').value;
   const datos={
     nombre,
     fnac:document.getElementById('mFnac').value,
@@ -1311,34 +1268,29 @@ async function addManual(){
     minDias:parseInt(document.getElementById('mMin').value)||0,
     snackDias:parseInt(document.getElementById('mSnack').value)||0,
     sinSnack:document.getElementById('mSinSnack').checked,
-    fechaEntrada:fechaEnt,
-    fechaSalida:fechaSal
+    fechaEntrada:document.getElementById('mFechaEnt').value,
+    fechaSalida:document.getElementById('mFechaSal').value
   };
-  let idModificado='';
-  let salidaFueLimpiada=false;
-  // Si estamos editando un huésped existente por ID
+  let idModificado='',salidaFueLimpiada=false;
   if(window._editandoId){
     const idx=S.huespedes.findIndex(h=>String(h.id)===String(window._editandoId));
     if(idx>=0){
       salidaFueLimpiada=Boolean(S.huespedes[idx].fechaSalida)&&!datos.fechaSalida;
       S.huespedes[idx]={...S.huespedes[idx],...datos};
-    }
-    else{S.huespedes.push({id:window._editandoId,...datos});}
+    }else{S.huespedes.push({id:window._editandoId,...datos});}
     idModificado=String(window._editandoId);
     window._editandoId=null;
-  } else {
-    const ex=S.huespedes.find(h=>
-      h.hostal===hostal&&
-      !h.fechaSalida&&
-      mismoNombre(h.nombre,nombre)
-    );
+  }else{
+    const ex=S.huespedes.find(h=>h.hostal===hostal&&!h.fechaSalida&&mismoNombre(h.nombre,nombre));
     if(ex){Object.assign(ex,datos);idModificado=String(ex.id);}
-    else{
-      const nuevo={id:Date.now()+Math.random(),...datos};
-      S.huespedes.push(nuevo);idModificado=String(nuevo.id);
-    }
+    else{const nuevo={id:Date.now()+Math.random(),...datos};S.huespedes.push(nuevo);idModificado=String(nuevo.id);}
   }
-  await guardar({permitirLimpiarSalidaIds:salidaFueLimpiada?[idModificado]:[]});
+  try{
+    await guardar({permitirLimpiarSalidaIds:salidaFueLimpiada?[idModificado]:[]});
+  }catch(e){
+    showMsg('manual','No se pudo guardar. Se recargarán los datos del servidor.','err');
+    await cargar();return;
+  }
   document.getElementById('mNombre').value='';
   document.getElementById('mFnac').value='';
   document.getElementById('mFechaEnt').value='';
@@ -1370,7 +1322,7 @@ function getTarifas(){
     tar:parseFloat(document.getElementById('cfgTar')?.value||(usaTarifasSeptiembre2026()?43.58:40)),
     pMin:parseFloat(document.getElementById('cfgMin')?.value||(usaTarifasSeptiembre2026()?5:4.59)),
     pSnack:parseFloat(document.getElementById('cfgSnack')?.value||(usaTarifasSeptiembre2026()?2.18:2)),
-    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||(usaTarifasSeptiembre2026()?5.08:4.67)),
+    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||(usaTarifasSeptiembre2026()?5.09:4.67)),
     igicPct:(parseFloat(document.getElementById('cfgIgic')?.value||7))/100
   };
 }
@@ -1468,9 +1420,18 @@ function renderH(){
 }
 async function delH(id){
   if(!confirm('¿Eliminar este huésped?'))return;
+  const anterior=[...S.huespedes];
   S.huespedes=S.huespedes.filter(h=>String(h.id)!==String(id));
-  await guardar({eliminarIds:[String(id)]});renderH();
+  try{
+    await guardar({eliminarIds:[String(id)]});
+  }catch(e){
+    S.huespedes=anterior;
+    await cargar();
+    alert('No se pudo eliminar el huésped. No se ha confirmado ningún borrado.');
+  }
+  renderH();
 }
+
 async function editH(id){
   const h=S.huespedes.find(x=>String(x.id)===String(id));if(!h)return;
   document.getElementById('mNombre').value=h.nombre;
@@ -1914,7 +1875,7 @@ async function generarExcel(){
       const minDiasCalc=h.minDias||0;
       const minI=minDiasCalc*pMin;
       // Recalcular snack con festivos actuales para menores
-      const snackDiasCalc=h.sinSnack?0:((h.fnac||menor)&&ini&&fin?calcLectivos(ini,fin,h):(h.snackDias||0));
+      const snackDiasCalc=h.sinSnack?0:(menor&&!bebe&&ini&&fin?calcLectivos(ini,fin,h):(h.snackDias||0));
       const snackI=snackDiasCalc*pSnack;
       const base=Math.round((aloj+minI+snackI)*100)/100;
       const igic=Math.round(base*igicPct*100)/100;
@@ -1984,11 +1945,10 @@ function guardarConfig(){
 }
 function renderConfig(){actualizarUI();}
 async function limpiarQuincena(){
-  if(!confirm(`¿Eliminar todos los huéspedes y festivos?`))return;
-  S.huespedes=[];S.festivos=[];
-  await guardar({reemplazar:true});renderH();renderF();
-  alert('✓ Datos eliminados');
+  alert('La limpieza masiva está deshabilitada por seguridad. Elimina únicamente registros concretos desde Huéspedes.');
+  return;
 }
+
 function storKey(){return `${S.qTipo}_${S.qMes}_${S.qAno}`;}
 function cntNav(){document.getElementById('nCnt').textContent=S.huespedes.length;}
 function exportarJSON(){
@@ -2017,13 +1977,8 @@ async function importarExcels(files){
   }
   document.getElementById('importResult').innerHTML='<div class="msg msg-info">⏳ Leyendo facturas CEAR...</div>';
 
-  // Si el checkbox está marcado, limpiar huéspedes de la quincena actual
-  const limpiar=document.getElementById('chkLimpiar')?.checked!==false;
-  if(limpiar){
-    S.huespedes=[];
-    await guardar({reemplazar:true});
-    actualizarUI();
-  }
+  // La importación integra datos con la quincena actual y nunca hace borrado masivo.
+  const limpiar=false;
 
   let totalImportados=0;
   let hostalResults=[];
@@ -2263,73 +2218,15 @@ async function renderCerrar(){
       (${nTipo===1?'01':16}-${nFin})
       <br><br>
       <strong>${continuan.length}</strong> huéspedes pasarán automáticamente con fecha de entrada = primer día de la nueva quincena.
-      Los festivos se resetearán — recuerda añadir los de la nueva quincena si los hay.
+      El cierre automático del servidor hará el traspaso. Los festivos de la nueva quincena se gestionan aparte.
     </div>`;
 }
 
 async function cerrarQuincena(){
-  let nTipo,nMes,nAno;
-  if(S.qTipo===1){nTipo=2;nMes=S.qMes;nAno=S.qAno;}
-  else{nTipo=1;nMes=S.qMes===12?1:S.qMes+1;nAno=S.qMes===12?S.qAno+1:S.qAno;}
-
-  // Con la nueva arquitectura los huespedes son globales
-  // Solo necesitamos:
-  // 1. Quitar fecha de salida a los que continuarán (los que salieron en esta quincena se quedan con su fecha)
-  // 2. Actualizar fecha de entrada de los que continúan al inicio de la nueva quincena
-  // 3. Resetear snack y picnic para la nueva quincena
-  // 4. Cambiar a la nueva quincena
-
-  const nIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
-  const nIniStr=fmtISO(nIni);
-
-  const qFinNorm=normDate(S.qFin);
-  const continuan=S.huespedes.filter(h=>{
-    if(!h.fechaSalida)return true;
-    const sal=normDate(pd(h.fechaSalida));
-    return !sal||sal>qFinNorm; // solo continúa si su salida es DESPUÉS del fin de esta quincena
-  });
-  const salen=S.huespedes.filter(h=>{
-    if(!h.fechaSalida)return false;
-    const sal=normDate(pd(h.fechaSalida));
-    return sal&&sal<=qFinNorm; // se va si su salida es ese día o antes
-  });
-
-  if(!confirm(`¿Cerrar quincena? ${continuan.length} huéspedes continuarán en la siguiente. ${salen.length} se van.`))return;
-
-  // Preparar huéspedes para la nueva quincena
-  const nuevosH=continuan.map(h=>({
-    ...h,
-    id:Date.now()+Math.random(),
-    fechaEntrada:nIniStr,
-    fechaSalida:'',
-    picnic:false,
-    snackDias:0,
-    origenCierre:qKey(),
-    estanciaId:h.estanciaId||String(h.id),
-    quincena:`${nAno}_${nMes}_${nTipo}`
-  }));
-
-  // Cambiar estado a nueva quincena ANTES de guardar
-  S.qTipo=nTipo;S.qMes=nMes;S.qAno=nAno;
-  const dm2=new Date(nAno,nMes,0).getDate();
-  S.qIni=nTipo===1?new Date(nAno,nMes-1,1):new Date(nAno,nMes-1,16);
-  S.qFin=nTipo===1?new Date(nAno,nMes-1,15):new Date(nAno,nMes-1,dm2);
-  document.getElementById('sQ').value=nTipo;
-  document.getElementById('sM').value=nMes;
-  document.getElementById('sA').value=nAno;
-  document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
-  aplicarTarifasPeriodo();
-
-  // Asignar los nuevos huéspedes y guardar en la nueva quincena
-  S.huespedes=nuevosH;
-  S.festivos=[];
-  await guardar();
-
-  actualizarUI();
-  const msg=`✓ ${continuan.length} huéspedes traspasados a la ${nTipo===1?'1ª':'2ª'} quincena de ${MESES[nMes]} ${nAno}.`;
-  showMsg('cerrar',msg,'ok');
-  renderCerrar();
+  alert('El cierre manual está deshabilitado por seguridad. La quincena se cierra automáticamente en el servidor los días 1 y 16.');
+  return;
 }
+
 
 // AUTO-DETECTAR MES ACTUAL
 (function(){
