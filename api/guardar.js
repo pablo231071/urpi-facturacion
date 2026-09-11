@@ -25,26 +25,6 @@ function normalizarNombre(valor) {
     .toUpperCase();
 }
 
-function datosQuincena(clave) {
-  const [ano, mes, tipo] = clave.split('_').map(Number);
-  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-
-  if (tipo === 1) {
-    return {
-      fin: `${ano}-${String(mes).padStart(2, '0')}-15`,
-      siguiente: `${ano}_${mes}_2`
-    };
-  }
-
-  const siguienteMes = mes === 12 ? 1 : mes + 1;
-  const siguienteAno = mes === 12 ? ano + 1 : ano;
-
-  return {
-    fin: `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`,
-    siguiente: `${siguienteAno}_${siguienteMes}_1`
-  };
-}
-
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -141,9 +121,6 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Una quincena de URPI está muy por debajo de este límite. Mantener toda
-    // la operación en una sola transacción evita que un guardado manual pueda
-    // sobrescribir un FIN registrado por la automatización entre lectura/escritura.
     if (datosValidos.length + eliminarIds.length > 400) {
       return res.status(400).json({
         ok: false,
@@ -152,20 +129,12 @@ module.exports = async function handler(req, res) {
     }
 
     const col = db.collection('huespedes');
-    const periodo = datosQuincena(quincenaLimpia);
     const limpiarSalida = new Set(permitirLimpiarSalidaIds.map(String));
     const idsAEliminar = new Set(eliminarIds.map(String));
 
     const resultado = await db.runTransaction(async (transaction) => {
-      // Todas las lecturas se hacen dentro de la misma transacción. Si
-      // Activepieces modifica alguno de estos documentos mientras se guarda,
-      // Firestore reintenta la operación con el estado más reciente.
       const snap = await transaction.get(
         col.where('quincena', '==', quincenaLimpia)
-      );
-
-      const siguienteSnap = await transaction.get(
-        col.where('quincena', '==', periodo.siguiente)
       );
 
       const existentesPorId = new Map(
@@ -179,9 +148,8 @@ module.exports = async function handler(req, res) {
         actual.estancia_id =
           actual.estancia_id || anterior?.estancia_id || actual.id || crypto.randomUUID();
 
-        // Protección principal: una pantalla que se cargó antes de recibir un
-        // correo FIN nunca puede borrar esa salida, salvo que el usuario haya
-        // pedido expresamente limpiarla desde la interfaz.
+        // Una pantalla antigua nunca puede borrar una fecha de salida ya
+        // registrada por la automatización, salvo petición manual explícita.
         if (
           anterior?.fecha_salida &&
           !actual.fecha_salida &&
@@ -193,17 +161,12 @@ module.exports = async function handler(req, res) {
         return actual;
       });
 
-      const salidasDelPeriodo = new Set(
-        datosFinales
-          .filter((h) => h.fecha_salida && h.fecha_salida <= periodo.fin)
-          .map((h) =>
-            h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal}`
-          )
-      );
-
       let eliminados = 0;
-      let copiasRetiradas = 0;
 
+      // Regla de seguridad: este guardado solo puede eliminar documentos de
+      // la MISMA quincena que se está editando. Nunca toca la anterior ni la
+      // siguiente. Así un cierre, un FIN retroactivo o una pantalla desfasada
+      // no puede hacer desaparecer huéspedes de otro periodo.
       snap.docs.forEach((doc) => {
         if (
           idsAEliminar.has(doc.id) ||
@@ -214,20 +177,6 @@ module.exports = async function handler(req, res) {
         }
       });
 
-      siguienteSnap.docs.forEach((doc) => {
-        const h = doc.data();
-        const clave =
-          h.estancia_id || `${normalizarNombre(h.nombre)}|${h.hostal || ''}`;
-
-        if (
-          h.origen_cierre === quincenaLimpia &&
-          salidasDelPeriodo.has(clave)
-        ) {
-          transaction.delete(doc.ref);
-          copiasRetiradas++;
-        }
-      });
-
       datosFinales.forEach((h) => {
         transaction.set(col.doc(h.id), h);
       });
@@ -235,7 +184,7 @@ module.exports = async function handler(req, res) {
       return {
         guardados: datosFinales.length,
         eliminados,
-        copiasRetiradas
+        copiasRetiradas: 0
       };
     });
 
@@ -243,7 +192,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       guardados: resultado.guardados,
       eliminados: resultado.eliminados,
-      copiasRetiradas: resultado.copiasRetiradas
+      copiasRetiradas: 0
     });
   } catch (error) {
     console.error('Error al guardar huéspedes:', error);
