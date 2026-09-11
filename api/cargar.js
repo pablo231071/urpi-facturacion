@@ -16,6 +16,27 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function puntuacion(h) {
+  return (
+    (h.fechaSalida ? 8 : 0) +
+    (h.fechaEntrada ? 4 : 0) +
+    (h.fnac ? 2 : 0) +
+    (h.cabeza ? 1 : 0) +
+    (h.sinSnack ? 1 : 0) +
+    (h.minDias ? 1 : 0) +
+    (h.snackDias ? 1 : 0)
+  );
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -71,47 +92,51 @@ module.exports = async function handler(req, res) {
       };
     });
 
-    // Protección contra duplicados creados por cierres anteriores:
-    // si dos documentos representan exactamente la misma estancia_id dentro
-    // de la misma quincena, solo se muestra una copia. No deduplicamos por
-    // nombre para evitar borrar por error a homónimos legítimos.
+    // Primera capa: consolidar documentos con la misma estancia_id.
     const porEstancia = new Map();
-    const sinEstancia = [];
+    const candidatos = [];
 
     for (const h of todos) {
-      const clave = String(h.estanciaId || '').trim();
+      const claveEstancia = String(h.estanciaId || '').trim();
 
-      if (!clave) {
-        sinEstancia.push(h);
+      if (!claveEstancia) {
+        candidatos.push(h);
         continue;
       }
 
-      const anterior = porEstancia.get(clave);
+      const anterior = porEstancia.get(claveEstancia);
 
-      if (!anterior) {
-        porEstancia.set(clave, h);
-        continue;
-      }
-
-      // Conservar preferentemente la copia que contenga más información.
-      const puntuacion = (x) =>
-        (x.fechaSalida ? 8 : 0) +
-        (x.fechaEntrada ? 4 : 0) +
-        (x.fnac ? 2 : 0) +
-        (x.cabeza ? 1 : 0) +
-        (x.sinSnack ? 1 : 0) +
-        (x.minDias ? 1 : 0) +
-        (x.snackDias ? 1 : 0);
-
-      if (puntuacion(h) > puntuacion(anterior)) {
-        porEstancia.set(clave, h);
+      if (!anterior || puntuacion(h) > puntuacion(anterior)) {
+        porEstancia.set(claveEstancia, h);
       }
     }
 
-    const huespedes = [
-      ...porEstancia.values(),
-      ...sinEstancia
-    ].sort((a, b) => a.orden - b.orden);
+    candidatos.push(...porEstancia.values());
+
+    // Segunda capa: algunos cierres antiguos generaron IDs de estancia nuevos
+    // para la misma persona. Consolidamos solo copias operativamente exactas:
+    // mismo nombre normalizado, mismo hostal, misma entrada y misma salida.
+    // No se elimina nada de Firestore; únicamente se evita mostrar dos veces
+    // la misma estancia aparente en la interfaz.
+    const porFirma = new Map();
+
+    for (const h of candidatos) {
+      const firma = [
+        normalizarTexto(h.nombre),
+        normalizarTexto(h.hostal),
+        String(h.fechaEntrada || ''),
+        String(h.fechaSalida || '')
+      ].join('|');
+
+      const anterior = porFirma.get(firma);
+
+      if (!anterior || puntuacion(h) > puntuacion(anterior)) {
+        porFirma.set(firma, h);
+      }
+    }
+
+    const huespedes = [...porFirma.values()]
+      .sort((a, b) => a.orden - b.orden);
 
     return res.status(200).json({
       ok: true,
