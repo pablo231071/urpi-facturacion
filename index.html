@@ -514,18 +514,18 @@ const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMO
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
-let claveGuardado=sessionStorage.getItem('urpi_clave_guardado')||'';
+let claveGuardado=localStorage.getItem('urpi_clave_guardado')||'';
 function obtenerClaveGuardado(){
   if(claveGuardado)return claveGuardado;
   const valor=window.prompt('Introduce la clave de administración de URPI para acceder y guardar cambios:');
   claveGuardado=String(valor||'').trim();
   if(!claveGuardado)throw new Error('Se necesita la clave de administración');
-  sessionStorage.setItem('urpi_clave_guardado',claveGuardado);
+  localStorage.setItem('urpi_clave_guardado',claveGuardado);
   return claveGuardado;
 }
 function olvidarClaveGuardado(){
   claveGuardado='';
-  sessionStorage.removeItem('urpi_clave_guardado');
+ localStorage.removeItem('urpi_clave_guardado');
 }
 
 function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
