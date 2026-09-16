@@ -514,6 +514,7 @@ const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMO
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
+localStorage.removeItem('urpi_clave_guardado');
 let claveGuardado=sessionStorage.getItem('urpi_clave_guardado')||'';
 function obtenerClaveGuardado(){
   if(claveGuardado)return claveGuardado;
