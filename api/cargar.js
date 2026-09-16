@@ -52,7 +52,10 @@ function esCabecera(nombre) {
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, X-Automation-Secret'
+  );
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
   if (req.method === 'OPTIONS') {
@@ -64,6 +67,22 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const secretoConfigurado =
+      process.env.AUTOMATION_SECRET;
+
+    const secretoRecibido =
+      req.headers['x-automation-secret'];
+
+    if (
+      !secretoConfigurado ||
+      secretoRecibido !== secretoConfigurado
+    ) {
+      return res.status(401).json({
+        ok: false,
+        error: 'No autorizado'
+      });
+    }
+
     const quincena = String(req.query.quincena || '').trim();
 
     if (!/^\d{4}_(?:[1-9]|1[0-2])_[12]$/.test(quincena)) {
@@ -179,3 +198,4 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
