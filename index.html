@@ -514,18 +514,19 @@ const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMO
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
-let claveGuardado=localStorage.getItem('urpi_clave_guardado')||'';
+let claveGuardado=sessionStorage.getItem('urpi_clave_guardado')||'';
 function obtenerClaveGuardado(){
   if(claveGuardado)return claveGuardado;
-  const valor=window.prompt('Introduce la clave de administración de URPI para acceder y guardar cambios:');
+  const valor=window.prompt('Introduce la misma clave de automatización que usa Activepieces. Solo se guardará durante esta sesión:');
   claveGuardado=String(valor||'').trim();
   if(!claveGuardado)throw new Error('Se necesita la clave de administración');
-  localStorage.setItem('urpi_clave_guardado',claveGuardado);
+  sessionStorage.setItem('urpi_clave_guardado',claveGuardado);
   return claveGuardado;
 }
 function olvidarClaveGuardado(){
   claveGuardado='';
- localStorage.removeItem('urpi_clave_guardado');
+  sessionStorage.removeItem('urpi_clave_guardado');
+  localStorage.removeItem('urpi_clave_guardado');
 }
 
 function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
@@ -568,18 +569,46 @@ async function guardar(opciones={}){
   }
 }
 
+async function cargarDatosServidor(claveActual){
+  const r=await fetch(`/api/cargar?quincena=${encodeURIComponent(qKey())}`,{
+    headers:{'X-Automation-Secret':claveActual}
+  });
+
+  let data;
+  try{
+    data=await r.json();
+  }catch(e){
+    throw new Error(`El servidor respondió con un formato no válido (HTTP ${r.status})`);
+  }
+
+  if(r.status===401){
+    const error=new Error('La clave de administración no es correcta');
+    error.codigo='NO_AUTORIZADO';
+    throw error;
+  }
+
+  if(!r.ok||!data.ok){
+    throw new Error(data.error||`Error HTTP ${r.status}`);
+  }
+
+  return data;
+}
+
 async function cargar(){
   try{
-    const claveActual=obtenerClaveGuardado();
-    const r=await fetch(`/api/cargar?quincena=${encodeURIComponent(qKey())}`,{
-      headers:{'X-Automation-Secret':claveActual}
-    });
-    const data=await r.json();
-    if(r.status===401){
+    let claveActual=obtenerClaveGuardado();
+    let data;
+
+    try{
+      data=await cargarDatosServidor(claveActual);
+    }catch(e){
+      if(e.codigo!=='NO_AUTORIZADO')throw e;
       olvidarClaveGuardado();
-      alert('La clave de administración no es correcta. Recarga la página para intentarlo de nuevo.');
+      alert('La clave no es correcta. Introdúcela otra vez.');
+      claveActual=obtenerClaveGuardado();
+      data=await cargarDatosServidor(claveActual);
     }
-    if(!data.ok)throw new Error(data.error||'Error servidor');
+
     S.huespedes=data.huespedes||[];
     const fv=localStorage.getItem(festKey());
     S.festivos=fv?JSON.parse(fv):[];
@@ -588,8 +617,14 @@ async function cargar(){
       const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
       const tel=document.getElementById('cfgTel');if(tel)tel.value=c.tel||'00 34 822 098 235';
     }
-  }catch(e){console.error('Error cargando:',e);S.huespedes=[];S.festivos=[];}
-  actualizarUI();
+    return true;
+  }catch(e){
+    console.error('Error cargando:',e);
+    alert('No se pudieron cargar los huéspedes. No se ha borrado ningún dato. '+e.message);
+    return false;
+  }finally{
+    actualizarUI();
+  }
 }
 function actualizarUI(){
   document.getElementById('nCnt').textContent=S.huespedes.length;
@@ -600,6 +635,15 @@ function actualizarUI(){
 }
 
 async function cambiarQ(){
+  const anterior={
+    qTipo:S.qTipo,
+    qMes:S.qMes,
+    qAno:S.qAno,
+    qIni:S.qIni,
+    qFin:S.qFin
+  };
+  const teniaPeriodoCargado=Boolean(S.qIni&&S.qFin);
+
   S.qTipo=parseInt(document.getElementById('sQ').value);
   S.qMes=parseInt(document.getElementById('sM').value);
   S.qAno=parseInt(document.getElementById('sA').value);
@@ -608,7 +652,18 @@ async function cambiarQ(){
   S.qFin=S.qTipo===1?new Date(S.qAno,S.qMes-1,15):new Date(S.qAno,S.qMes-1,dm);
   document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
   aplicarTarifasPeriodo();
-  await cargar();
+
+  const cargado=await cargar();
+
+  if(!cargado&&teniaPeriodoCargado){
+    Object.assign(S,anterior);
+    document.getElementById('sQ').value=S.qTipo;
+    document.getElementById('sM').value=S.qMes;
+    document.getElementById('sA').value=S.qAno;
+    document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
+    aplicarTarifasPeriodo();
+    actualizarUI();
+  }
 }
 
 function fmt(d){return d?d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
