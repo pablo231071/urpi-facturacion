@@ -176,13 +176,52 @@ module.exports = async function handler(req, res) {
             transaction.get(cierreRef)
           ]);
 
-        const activos = origenSnap.docs.filter((documento) => {
-          const salida = String(
-            documento.data().fecha_salida || ''
-          );
+        const activosOrdenados = origenSnap.docs
+          .filter((documento) => {
+            const salida = String(
+              documento.data().fecha_salida || ''
+            );
 
-          return !salida || salida > cierre.finOrigen;
-        });
+            return !salida || salida > cierre.finOrigen;
+          })
+          .sort((a, b) => {
+            const ordenA = Number(a.data().orden);
+            const ordenB = Number(b.data().orden);
+            const valorA = Number.isFinite(ordenA)
+              ? ordenA
+              : Number.MAX_SAFE_INTEGER;
+            const valorB = Number.isFinite(ordenB)
+              ? ordenB
+              : Number.MAX_SAFE_INTEGER;
+
+            if (valorA !== valorB) return valorA - valorB;
+            return String(a.id).localeCompare(String(b.id));
+          });
+
+        // Conservar la primera aparición de cada estancia/persona en el
+        // orden original. Así el titular y sus familiares siguen juntos.
+        const activos = [];
+        const idsOrigenVistos = new Set();
+        const nombresOrigenVistos = new Set();
+
+        for (const documento of activosOrdenados) {
+          const huesped = documento.data();
+          const estanciaId = String(
+            huesped.estancia_id || documento.id
+          );
+          const nombre = claveNombre(huesped);
+
+          if (
+            idsOrigenVistos.has(estanciaId) ||
+            nombresOrigenVistos.has(nombre)
+          ) {
+            continue;
+          }
+
+          idsOrigenVistos.add(estanciaId);
+          nombresOrigenVistos.add(nombre);
+          activos.push(documento);
+        }
 
         const idsActivos = new Set();
         const nombresActivos = new Set();
@@ -241,6 +280,9 @@ module.exports = async function handler(req, res) {
 
         let traspasados = 0;
         let yaExistian = 0;
+        let reordenados = 0;
+        let ordenDestino = 0;
+        const referenciasOrdenadas = new Set();
 
         for (const documento of activos) {
           const huesped = documento.data();
@@ -251,13 +293,19 @@ module.exports = async function handler(req, res) {
           const existente =
             porEstancia.get(estanciaId) ||
             porNombre.get(nombre);
+          const ordenActual = ordenDestino++;
 
           if (existente) {
             const cambios = {
               estancia_id: estanciaId,
+              orden: ordenActual,
               actualizado_en:
                 admin.firestore.FieldValue.serverTimestamp()
             };
+
+            if (Number(existente.orden) !== ordenActual) {
+              reordenados++;
+            }
 
             if (
               huesped.fecha_salida &&
@@ -272,6 +320,7 @@ module.exports = async function handler(req, res) {
               cambios,
               { merge: true }
             );
+            referenciasOrdenadas.add(existente.ref.id);
             yaExistian++;
             continue;
           }
@@ -301,7 +350,7 @@ module.exports = async function handler(req, res) {
             min_dias: 0,
             snack_dias: 0,
             importado: Boolean(huesped.importado),
-            orden: destinoSnap.size + traspasados,
+            orden: ordenActual,
             tipo_manual: huesped.tipo_manual || '',
             sin_snack: Boolean(huesped.sin_snack),
             quincena: cierre.destino,
@@ -313,9 +362,48 @@ module.exports = async function handler(req, res) {
           };
 
           transaction.set(ref, copia, { merge: true });
+          referenciasOrdenadas.add(ref.id);
           porEstancia.set(estanciaId, { ref, ...copia });
           porNombre.set(nombre, { ref, ...copia });
           traspasados++;
+        }
+
+        // Las altas propias de la nueva quincena quedan después de quienes
+        // continuaban, manteniendo entre ellas su orden relativo.
+        const propiosDestino = destinoValido
+          .filter(
+            (huesped) =>
+              !referenciasOrdenadas.has(huesped.ref.id)
+          )
+          .sort((a, b) => {
+            const ordenA = Number(a.orden);
+            const ordenB = Number(b.orden);
+            const valorA = Number.isFinite(ordenA)
+              ? ordenA
+              : Number.MAX_SAFE_INTEGER;
+            const valorB = Number.isFinite(ordenB)
+              ? ordenB
+              : Number.MAX_SAFE_INTEGER;
+
+            if (valorA !== valorB) return valorA - valorB;
+            return String(a.id).localeCompare(String(b.id));
+          });
+
+        for (const huesped of propiosDestino) {
+          const ordenActual = ordenDestino++;
+
+          if (Number(huesped.orden) !== ordenActual) {
+            transaction.set(
+              huesped.ref,
+              {
+                orden: ordenActual,
+                actualizado_en:
+                  admin.firestore.FieldValue.serverTimestamp()
+              },
+              { merge: true }
+            );
+            reordenados++;
+          }
         }
 
         const eraRepetido = Boolean(
@@ -332,6 +420,7 @@ module.exports = async function handler(req, res) {
             activos_en_origen: activos.length,
             traspasados,
             ya_existian: yaExistian,
+            reordenados,
             eliminados_obsoletos: eliminadosObsoletos,
             completado: true,
             actualizado_en:
@@ -344,6 +433,7 @@ module.exports = async function handler(req, res) {
           activos: activos.length,
           traspasados,
           yaExistian,
+          reordenados,
           eliminadosObsoletos,
           repetido: eraRepetido
         };
