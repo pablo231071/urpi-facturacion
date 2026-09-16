@@ -98,6 +98,15 @@ function claveNombre(huesped) {
   );
 }
 
+function puntuacionRegistro(huesped) {
+  return (
+    (huesped.fecha_salida ? 1000 : 0) +
+    (huesped.fecha_entrada ? 100 : 0) +
+    (huesped.fnac ? 10 : 0) +
+    (huesped.cabeza ? 1 : 0)
+  );
+}
+
 function idCopiaCierre(quincena, estanciaId) {
   return `cierre_${quincena}_${estanciaId}`
     .replace(/[^A-Za-z0-9_-]/g, '_')
@@ -176,52 +185,90 @@ module.exports = async function handler(req, res) {
             transaction.get(cierreRef)
           ]);
 
-        const activosOrdenados = origenSnap.docs
+        // Consolidar primero todas las copias del origen. Si una copia tiene
+        // salida y otra no, se conserva la que contiene la salida. Solo
+        // después se decide quién continúa a la nueva quincena.
+        const origenConsolidado = [];
+        const origenPorEstancia = new Map();
+        const origenPorNombre = new Map();
+
+        for (const [posicion, documento] of
+          origenSnap.docs.entries()) {
+          const huesped = documento.data();
+          const estanciaId = String(huesped.estancia_id || '');
+          const nombre = claveNombre(huesped);
+          const orden = Number(huesped.orden);
+          const ordenBase = Number.isFinite(orden)
+            ? orden
+            : Number.MAX_SAFE_INTEGER;
+          const existente =
+            (estanciaId && origenPorEstancia.get(estanciaId)) ||
+            origenPorNombre.get(nombre);
+
+          if (!existente) {
+            const registro = {
+              documento,
+              ordenBase,
+              posicion
+            };
+
+            origenConsolidado.push(registro);
+            if (estanciaId) {
+              origenPorEstancia.set(estanciaId, registro);
+            }
+            origenPorNombre.set(nombre, registro);
+            continue;
+          }
+
+          existente.ordenBase = Math.min(
+            existente.ordenBase,
+            ordenBase
+          );
+
+          const actual = existente.documento.data();
+          const puntuacionActual = puntuacionRegistro(actual);
+          const puntuacionNueva = puntuacionRegistro(huesped);
+          const salidaActual = String(actual.fecha_salida || '');
+          const salidaNueva = String(huesped.fecha_salida || '');
+
+          if (
+            puntuacionNueva > puntuacionActual ||
+            (
+              puntuacionNueva === puntuacionActual &&
+              salidaNueva > salidaActual
+            )
+          ) {
+            existente.documento = documento;
+          }
+
+          if (estanciaId) {
+            origenPorEstancia.set(estanciaId, existente);
+          }
+          origenPorNombre.set(nombre, existente);
+        }
+
+        const activos = origenConsolidado
+          .sort((a, b) => {
+            if (a.ordenBase !== b.ordenBase) {
+              return a.ordenBase - b.ordenBase;
+            }
+
+            if (a.posicion !== b.posicion) {
+              return a.posicion - b.posicion;
+            }
+
+            return String(a.documento.id).localeCompare(
+              String(b.documento.id)
+            );
+          })
+          .map((registro) => registro.documento)
           .filter((documento) => {
             const salida = String(
               documento.data().fecha_salida || ''
             );
 
             return !salida || salida > cierre.finOrigen;
-          })
-          .sort((a, b) => {
-            const ordenA = Number(a.data().orden);
-            const ordenB = Number(b.data().orden);
-            const valorA = Number.isFinite(ordenA)
-              ? ordenA
-              : Number.MAX_SAFE_INTEGER;
-            const valorB = Number.isFinite(ordenB)
-              ? ordenB
-              : Number.MAX_SAFE_INTEGER;
-
-            if (valorA !== valorB) return valorA - valorB;
-            return String(a.id).localeCompare(String(b.id));
           });
-
-        // Conservar la primera aparición de cada estancia/persona en el
-        // orden original. Así el titular y sus familiares siguen juntos.
-        const activos = [];
-        const idsOrigenVistos = new Set();
-        const nombresOrigenVistos = new Set();
-
-        for (const documento of activosOrdenados) {
-          const huesped = documento.data();
-          const estanciaId = String(
-            huesped.estancia_id || documento.id
-          );
-          const nombre = claveNombre(huesped);
-
-          if (
-            idsOrigenVistos.has(estanciaId) ||
-            nombresOrigenVistos.has(nombre)
-          ) {
-            continue;
-          }
-
-          idsOrigenVistos.add(estanciaId);
-          nombresOrigenVistos.add(nombre);
-          activos.push(documento);
-        }
 
         const idsActivos = new Set();
         const nombresActivos = new Set();
