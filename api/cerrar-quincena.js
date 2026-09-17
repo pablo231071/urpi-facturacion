@@ -59,7 +59,10 @@ function validarFecha(fecha) {
 function datosCierre(fecha) {
   const [ano, mes, dia] = fecha.split('-').map(Number);
 
-  if (dia === 16) {
+  // Permitir reconciliar una quincena cualquier día. Esto hace posible
+  // reintentar un cierre fallido después del día 1 o 16 sin cambiar de
+  // periodo ni duplicar huéspedes.
+  if (dia >= 16) {
     return {
       origen: `${ano}_${mes}_1`,
       destino: `${ano}_${mes}_2`,
@@ -70,7 +73,7 @@ function datosCierre(fecha) {
     };
   }
 
-  if (dia === 1) {
+  if (dia >= 1 && dia <= 15) {
     const anterior = new Date(Date.UTC(ano, mes - 1, 0));
     const anoAnterior = anterior.getUTCFullYear();
     const mesAnterior = anterior.getUTCMonth() + 1;
@@ -158,14 +161,6 @@ module.exports = async function handler(req, res) {
     }
 
     const cierre = datosCierre(fecha);
-
-    if (!cierre) {
-      return res.status(400).json({
-        ok: false,
-        error:
-          'El cierre solo puede ejecutarse los días 1 y 16'
-      });
-    }
 
     const col = db.collection('huespedes');
     const cierreRef = db
