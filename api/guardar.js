@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const { estaAutorizada } = require('./_sesion');
 
 if (!admin.apps.length) {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -108,13 +109,7 @@ module.exports = async function handler(req, res) {
   try {
     const secretoConfigurado =
       process.env.AUTOMATION_SECRET;
-    const secretoRecibido =
-      req.headers['x-automation-secret'];
-
-    if (
-      !secretoConfigurado ||
-      secretoRecibido !== secretoConfigurado
-    ) {
+    if (!estaAutorizada(req, secretoConfigurado)) {
       return res.status(401).json({
         ok: false,
         error: 'No autorizado'
