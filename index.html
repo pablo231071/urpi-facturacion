@@ -514,20 +514,27 @@ const SKIP=['INICIO','FIN','ESTANCIA','HOSTAL','RF','BUENOS','BUENAS','INFORMAMO
 
 let S={qTipo:2,qMes:5,qAno:2026,qIni:null,qFin:null,huespedes:[],festivos:[],config:{email:'pablosarria@urpihospedajes.com',tel:'00 34 822 098 235'}};
 
+sessionStorage.removeItem('urpi_clave_guardado');
 localStorage.removeItem('urpi_clave_guardado');
-let claveGuardado=sessionStorage.getItem('urpi_clave_guardado')||'';
-function obtenerClaveGuardado(){
-  if(claveGuardado)return claveGuardado;
-  const valor=window.prompt('Introduce la misma clave de automatización que usa Activepieces. Solo se guardará durante esta sesión:');
-  claveGuardado=String(valor||'').trim();
-  if(!claveGuardado)throw new Error('Se necesita la clave de administración');
-  sessionStorage.setItem('urpi_clave_guardado',claveGuardado);
-  return claveGuardado;
-}
-function olvidarClaveGuardado(){
-  claveGuardado='';
-  sessionStorage.removeItem('urpi_clave_guardado');
-  localStorage.removeItem('urpi_clave_guardado');
+
+async function iniciarSesionDispositivo(){
+  const valor=window.prompt('Introduce la clave de administración. Este dispositivo quedará recordado durante 180 días:');
+  const secreto=String(valor||'').trim();
+  if(!secreto)throw new Error('Se necesita la clave de administración');
+
+  const r=await fetch('/api/sesion',{
+    method:'POST',
+    headers:{'X-Automation-Secret':secreto},
+    credentials:'same-origin'
+  });
+
+  let data;
+  try{data=await r.json();}
+  catch(e){throw new Error(`El servidor respondió con un formato no válido (HTTP ${r.status})`);}
+
+  if(r.status===401)throw new Error('La clave de administración no es correcta');
+  if(!r.ok||!data.ok)throw new Error(data.error||`Error HTTP ${r.status}`);
+  return true;
 }
 
 function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
@@ -542,12 +549,13 @@ function aplicarTarifasPeriodo(){const nuevas=usaTarifasSeptiembre2026();const t
 
 async function guardar(opciones={}){
   try{
-    const claveActual=obtenerClaveGuardado();
     localStorage.setItem('urpi_config',JSON.stringify(S.config));
     localStorage.setItem(festKey(),JSON.stringify(S.festivos));
-    const r=await fetch('/api/guardar',{
+
+    const enviar=()=>fetch('/api/guardar',{
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Automation-Secret':claveActual},
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
       body:JSON.stringify({
         huespedes:S.huespedes,
         quincena:qKey(),
@@ -555,11 +563,14 @@ async function guardar(opciones={}){
         permitirLimpiarSalidaIds:opciones.permitirLimpiarSalidaIds||[]
       })
     });
-    const data=await r.json();
+
+    let r=await enviar();
     if(r.status===401){
-      olvidarClaveGuardado();
-      alert('La clave de administración no es correcta. Vuelve a intentarlo.');
+      await iniciarSesionDispositivo();
+      r=await enviar();
     }
+
+    const data=await r.json();
     if(!data.ok)throw new Error(data.error||'Error servidor');
     return data;
   }catch(e){
@@ -570,9 +581,9 @@ async function guardar(opciones={}){
   }
 }
 
-async function cargarDatosServidor(claveActual){
+async function cargarDatosServidor(){
   const r=await fetch(`/api/cargar?quincena=${encodeURIComponent(qKey())}`,{
-    headers:{'X-Automation-Secret':claveActual}
+    credentials:'same-origin'
   });
 
   let data;
@@ -597,17 +608,14 @@ async function cargarDatosServidor(claveActual){
 
 async function cargar(){
   try{
-    let claveActual=obtenerClaveGuardado();
     let data;
 
     try{
-      data=await cargarDatosServidor(claveActual);
+      data=await cargarDatosServidor();
     }catch(e){
       if(e.codigo!=='NO_AUTORIZADO')throw e;
-      olvidarClaveGuardado();
-      alert('La clave no es correcta. Introdúcela otra vez.');
-      claveActual=obtenerClaveGuardado();
-      data=await cargarDatosServidor(claveActual);
+      await iniciarSesionDispositivo();
+      data=await cargarDatosServidor();
     }
 
     S.huespedes=data.huespedes||[];
