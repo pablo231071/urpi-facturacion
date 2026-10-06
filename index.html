@@ -1205,10 +1205,6 @@ async function confirmarTrasladoMasivo(){
   const tm=window._trasladoMasivo;
   if(!tm)return;
   const fecha=tm.fecha;
-  // Calcular día anterior para el hostal origen
-  const dT=pd(fecha);
-  const dAnt=new Date(dT.getFullYear(),dT.getMonth(),dT.getDate()-1);
-  const fechaAnt=fmtISO(dAnt);
   let procesados=0;
   let nuevos=0;
 
@@ -1219,8 +1215,8 @@ async function confirmarTrasladoMasivo(){
         h.nombre.toUpperCase().includes(key.split(' ')[0])&&
         h.nombre.toUpperCase().includes(key.split(' ').slice(-1)[0])));
       if(ex){
-        // Actualizar: poner fecha salida en origen y crear nuevo en destino
-        ex.fechaSalida=fechaAnt;
+        // La salida es exclusiva: el día del traslado ya pertenece al destino.
+        ex.fechaSalida=fecha;
         S.huespedes.push({
           id:Date.now()+Math.random(),
           nombre:ex.nombre,fnac:ex.fnac,
@@ -1310,13 +1306,9 @@ async function confirmar(){
     const ex=candidatos.find(h=>!h.fechaSalida)||candidatos[candidatos.length-1];
 
     if(tipo==='TRASLADO'&&traslado){
-      // Calcular día anterior al traslado para el hostal origen
-      const dTraslado=pd(fecha);
-      const dAnterior=new Date(dTraslado.getFullYear(),dTraslado.getMonth(),dTraslado.getDate()-1);
-      const fechaAnterior=fmtISO(dAnterior);
-      // Actualizar entrada existente en hostal origen: poner fecha de salida = día anterior
+      // La salida es exclusiva: el día del traslado ya pertenece al destino.
       if(ex){
-        ex.fechaSalida=fechaAnterior;
+        ex.fechaSalida=fecha;
         ex.picnic=false;
       }
       // Crear nueva entrada en hostal destino desde el día del traslado
@@ -1391,21 +1383,24 @@ async function addManual(){
 }
 
 function calcDias(h){
-  // Si no hay quincena definida, no calcular
+  // Las estancias se facturan por noches: entrada incluida y salida excluida.
   if(!S.qIni||!S.qFin)return{dias:0,ini:new Date(),fin:new Date()};
   const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
   const qIni=norm(S.qIni);
   const qFin=norm(S.qFin);
-  // Fecha entrada: si no hay o es anterior a la quincena, usar inicio de quincena
-  let ini=h.fechaEntrada?pd(h.fechaEntrada):null;
-  ini=(!ini||norm(ini)<qIni)?new Date(qIni):norm(ini);
-  // Fecha salida: si no hay o es posterior a la quincena, usar fin de quincena
-  let fin=h.fechaSalida?pd(h.fechaSalida):null;
-  fin=(!fin||norm(fin)>qFin)?new Date(qFin):norm(fin);
-  // Si la salida es antes del inicio de la quincena, 0 dias
-  if(fin<qIni)return{dias:0,ini:qIni,fin:qIni};
-  if(ini>qFin)return{dias:0,ini:qFin,fin:qFin};
-  return{dias:Math.round((fin-ini)/86400000)+1,ini,fin};
+  const qFinExclusivo=new Date(qFin.getFullYear(),qFin.getMonth(),qFin.getDate()+1);
+  const entrada=h.fechaEntrada?pd(h.fechaEntrada):null;
+  const salida=h.fechaSalida?pd(h.fechaSalida):null;
+  const entradaNorm=entrada?norm(entrada):qIni;
+  const salidaNorm=salida?norm(salida):qFinExclusivo;
+  const ini=new Date(Math.max(entradaNorm.getTime(),qIni.getTime()));
+  const finExclusivo=new Date(Math.min(salidaNorm.getTime(),qFinExclusivo.getTime()));
+  const dias=Math.max(0,Math.round((finExclusivo-ini)/86400000));
+  // Para mostrar la factura, "hasta" es la fecha de la última noche cobrada.
+  const fin=dias>0
+    ?new Date(finExclusivo.getFullYear(),finExclusivo.getMonth(),finExclusivo.getDate()-1)
+    :new Date(ini);
+  return{dias,ini,fin};
 }
 function getTarifas(){
   return{
@@ -1440,6 +1435,12 @@ function calcImp(h){
   const igicPicnic=Math.round(picnic*igicPct*100)/100;
   const igic=Math.round((igicSinPicnic+igicPicnic)*100)/100;
   return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,baseSinPicnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
+}
+function esFacturableEnPeriodo(h){
+  const i=calcImp(h);
+  // Conserva bebés con estancia (importe 0) y extras manuales legítimos,
+  // pero excluye copias sin ninguna noche ni importe en esta quincena.
+  return i.dias>0||i.base!==0||i.igic!==0;
 }
 
 function renderH(){
@@ -1488,7 +1489,7 @@ function renderH(){
           <div class="hrow-top">
             <div>
               <div class="hrow-name" style="font-weight:${h.cabeza?600:400}">${esc(h.nombre)}</div>
-              <div class="hrow-meta">${h.fechaEntrada||'sin entrada'} → ${h.fechaSalida||'quincena completa'} · ${imp.dias} días · ${imp.total.toFixed(2)} €</div>
+              <div class="hrow-meta">${h.fechaEntrada||'sin entrada'} → ${h.fechaSalida||'quincena completa'} · ${imp.dias} noches · ${imp.total.toFixed(2)} €</div>
             </div>
             <div class="hrow-acts">
               <button class="btn btn-sm" onclick="editH('${h.id}')">Editar</button>
@@ -1561,13 +1562,14 @@ function renderF(){
 
 function renderR(){
   const a=document.getElementById('rContent');
-  if(!S.huespedes.length){a.innerHTML='<div class="empty"><div class="empty-icon">≡</div><div class="empty-txt">Sin huéspedes registrados.</div></div>';return;}
-  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const facturables=S.huespedes.filter(esFacturableEnPeriodo);
+  if(!facturables.length){a.innerHTML='<div class="empty"><div class="empty-icon">≡</div><div class="empty-txt">No hay estancias facturables en este periodo.</div></div>';return;}
+  const byH={};facturables.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   let totB=0,totI=0;
-  S.huespedes.forEach(h=>{const i=calcImp(h);totB+=i.base;totI+=i.igic;});
+  facturables.forEach(h=>{const i=calcImp(h);totB+=i.base;totI+=i.igic;});
   const totT=Math.round((totB+totI)*100)/100;
   a.innerHTML=`<div class="stats">
-    <div class="stat"><div class="stat-v">${S.huespedes.length}</div><div class="stat-l">Huéspedes</div></div>
+    <div class="stat"><div class="stat-v">${facturables.length}</div><div class="stat-l">Huéspedes</div></div>
     <div class="stat"><div class="stat-v">${Object.keys(byH).length}</div><div class="stat-l">Hostales</div></div>
     <div class="stat"><div class="stat-v">${totB.toFixed(0)} €</div><div class="stat-l">Base imponible</div></div>
     <div class="stat accent"><div class="stat-v">${totT.toFixed(0)} €</div><div class="stat-l">Total con IGIC</div></div>
@@ -1594,7 +1596,7 @@ function renderR(){
       <div class="hhead"><span>${esc(hostal)}</span><span class="htotal">${hT.toFixed(2)} €</span></div>
       <div class="hbody" style="padding:0"><div class="tbl-wrap">
         <table class="tbl">
-          <tr><th>Huésped</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th style="text-align:right">Días</th><th style="text-align:right">Aloj.</th><th style="text-align:right">Extras</th><th style="text-align:right">Base</th><th style="text-align:right">IGIC</th><th style="text-align:right">Total</th></tr>
+          <tr><th>Huésped</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th style="text-align:right">Noches</th><th style="text-align:right">Aloj.</th><th style="text-align:right">Extras</th><th style="text-align:right">Base</th><th style="text-align:right">IGIC</th><th style="text-align:right">Total</th></tr>
           ${rows}
           <tr class="tot-row">
             <td colspan="7" style="padding:6px 8px">Total ${hostal}</td>
@@ -1609,8 +1611,9 @@ function renderR(){
 }
 
 function verPreview(){
-  if(!S.huespedes.length){document.getElementById('genPreview').innerHTML='<div class="msg msg-warn">Sin huéspedes registrados.</div>';return;}
-  const byH={};S.huespedes.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
+  const facturables=S.huespedes.filter(esFacturableEnPeriodo);
+  if(!facturables.length){document.getElementById('genPreview').innerHTML='<div class="msg msg-warn">No hay estancias facturables en este periodo.</div>';return;}
+  const byH={};facturables.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   let numFact=parseInt(document.getElementById('cfgNum').value);
   const anoFact=document.getElementById('cfgAno').value;
   let totB=0,totI=0,totT=0;
@@ -1632,7 +1635,8 @@ function verPreview(){
 }
 
 async function generarExcel(){
-  if(!S.huespedes.length){document.getElementById('genResult').innerHTML='<div class="msg msg-err">No hay huéspedes registrados.</div>';return;}
+  const facturables=S.huespedes.filter(esFacturableEnPeriodo);
+  if(!facturables.length){document.getElementById('genResult').innerHTML='<div class="msg msg-err">No hay estancias facturables en este periodo.</div>';return;}
   if(typeof ExcelJS==='undefined'){document.getElementById('genResult').innerHTML='<div class="msg msg-err">La librería Excel aún carga. Espera unos segundos e intenta de nuevo.</div>';return;}
 
   document.getElementById('genResult').innerHTML='<div class="msg msg-info">⏳ Generando Excel con formato exacto...</div>';
@@ -1643,7 +1647,7 @@ async function generarExcel(){
   const email=document.getElementById('cfgEmail')?.value||S.config.email;
   const tel=document.getElementById('cfgTel')?.value||S.config.tel;
   // Ordenar por campo orden antes de agrupar
-  const huespedesOrdenados=[...S.huespedes].sort((a,b)=>(a.orden||0)-(b.orden||0));
+  const huespedesOrdenados=[...facturables].sort((a,b)=>(a.orden||0)-(b.orden||0));
   const byH={};huespedesOrdenados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   const dm=new Date(S.qAno,S.qMes,0).getDate();
   const per=`${S.qTipo===1?'1Q':'2Q'} (${S.qTipo===1?'01-15':'16-'+dm})`;
@@ -2021,7 +2025,7 @@ async function generarExcel(){
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const fname=`Facturas_CEAR_${per.replace(/[()\/\s]/g,'')}_${mes}_${S.qAno}.xlsx`;
     saveAs(blob,fname);
-    document.getElementById('genResult').innerHTML=`<div class="msg msg-ok">✓ Excel generado con formato exacto: <strong>${fname}</strong> · ${Object.keys(byH).length} hojas · ${S.huespedes.length} huéspedes</div>`;
+    document.getElementById('genResult').innerHTML=`<div class="msg msg-ok">✓ Excel generado con formato exacto: <strong>${fname}</strong> · ${Object.keys(byH).length} hojas · ${huespedesOrdenados.length} huéspedes</div>`;
   }catch(e){
     document.getElementById('genResult').innerHTML=`<div class="msg msg-err">Error al generar: ${e.message}</div>`;
   }
@@ -2279,16 +2283,17 @@ async function renderCerrar(){
   const nFin=nTipo===1?'15':String(nDm);
 
   // Clasificar huéspedes (comparación normalizada a solo-día, sin horas)
-  const qFinNorm=normDate(S.qFin);
+  const inicioSiguienteNorm=new Date(nAno,nMes-1,nTipo===1?1:16);
   const continuan=S.huespedes.filter(h=>{
     if(!h.fechaSalida)return true;
     const sal=normDate(pd(h.fechaSalida));
-    return !sal||sal>qFinNorm; // solo continúa si su salida es DESPUÉS del fin de esta quincena
+    // Si sale el primer día del periodo siguiente, su última noche fue aquí.
+    return !sal||sal>inicioSiguienteNorm;
   });
   const salen=S.huespedes.filter(h=>{
     if(!h.fechaSalida)return false;
     const sal=normDate(pd(h.fechaSalida));
-    return sal&&sal<=qFinNorm; // se va si su salida es ese día o antes
+    return sal&&sal<=inicioSiguienteNorm;
   });
 
   document.getElementById('cerrarResumen').innerHTML=`
