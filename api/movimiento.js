@@ -137,15 +137,6 @@ function inicioDeQuincena(fecha) {
   );
 }
 
-function diaAnterior(fecha) {
-  const [ano, mes, dia] = fecha.split('-').map(Number);
-  const d = new Date(Date.UTC(ano, mes - 1, dia));
-
-  d.setUTCDate(d.getUTCDate() - 1);
-
-  return d.toISOString().slice(0, 10);
-}
-
 function validarFecha(fecha) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
 
@@ -643,12 +634,14 @@ module.exports = async function handler(req, res) {
 
           if (existente && existente.hostal !== hostalLimpio) {
             transaction.update(existente.ref, {
-              fecha_salida: diaAnterior(fechaLimpia),
+              // La salida es exclusiva: el día del traslado se factura
+              // únicamente en el establecimiento de destino.
+              fecha_salida: fechaLimpia,
               picnic: false,
               actualizado_en:
                 admin.firestore.FieldValue.serverTimestamp()
             });
-            existente.fecha_salida = diaAnterior(fechaLimpia);
+            existente.fecha_salida = fechaLimpia;
           }
 
           const nuevaRef = huespedesCol.doc();

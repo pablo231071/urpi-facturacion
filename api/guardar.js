@@ -374,7 +374,10 @@ module.exports = async function handler(req, res) {
                 )
             );
             const continua =
-              !h.fecha_salida || h.fecha_salida > periodo.fin;
+              // La salida es exclusiva. Si coincide con el inicio de la
+              // siguiente quincena, no hay ninguna noche que traspasar.
+              !h.fecha_salida ||
+              h.fecha_salida > periodo.inicioSiguiente;
 
             if (!continua) {
               for (const copia of copiasAutomaticas) {

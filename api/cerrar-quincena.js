@@ -262,7 +262,9 @@ module.exports = async function handler(req, res) {
               documento.data().fecha_salida || ''
             );
 
-            return !salida || salida > cierre.finOrigen;
+            // La fecha de salida es exclusiva: salir el primer día del
+            // destino significa que la última noche pertenece al origen.
+            return !salida || salida > cierre.inicioDestino;
           });
 
         const idsActivos = new Set();
@@ -351,7 +353,7 @@ module.exports = async function handler(req, res) {
 
             if (
               huesped.fecha_salida &&
-              huesped.fecha_salida > cierre.finOrigen &&
+              huesped.fecha_salida > cierre.inicioDestino &&
               !existente.fecha_salida
             ) {
               cambios.fecha_salida = huesped.fecha_salida;
@@ -384,7 +386,7 @@ module.exports = async function handler(req, res) {
             fecha_entrada: cierre.inicioDestino,
             fecha_salida:
               huesped.fecha_salida &&
-              huesped.fecha_salida > cierre.finOrigen
+              huesped.fecha_salida > cierre.inicioDestino
                 ? huesped.fecha_salida
                 : '',
             cabeza: Boolean(huesped.cabeza),
