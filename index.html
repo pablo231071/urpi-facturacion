@@ -319,8 +319,16 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
       <div class="fg"><label>Fecha entrada (dejar vacío = inicio quincena)</label><input type="date" id="mFechaEnt"></div>
       <div class="fg"><label>Fecha salida (dejar vacío = fin quincena)</label><input type="date" id="mFechaSal"></div>
     </div>
-    <div class="g3" style="margin-bottom:10px">
+    <div class="g4" style="margin-bottom:10px">
       <div class="fg"><label>Fecha de nacimiento</label><input type="date" id="mFnac"></div>
+      <div class="fg"><label>Tipo para facturación</label>
+        <select id="mTipoManual">
+          <option value="">Automático por edad</option>
+          <option value="adulto">Adulto</option>
+          <option value="menor">Menor</option>
+          <option value="bebe">Bebé</option>
+        </select>
+      </div>
       <div class="fg"><label>Cabeza de familia</label>
         <select id="mCabeza"><option value="no">No</option><option value="si">Sí</option></select>
       </div>
@@ -332,10 +340,18 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
       <div class="fg"><label>Min iniciación (días)</label><input type="number" id="mMin" value="0" min="0"></div>
       <div class="fg"><label>Snack escolar (días)</label><input type="number" id="mSnack" value="0" min="0"></div>
     </div>
-    <div style="margin-bottom:12px">
+    <div style="display:grid;gap:8px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="mSnackManual" style="width:auto">
+        <span>Usar exactamente los días de snack indicados arriba</span>
+      </label>
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
         <input type="checkbox" id="mSinSnack" style="width:auto">
         <span>Sin snack escolar (menor no escolarizado)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="mSinAlojamiento" style="width:auto">
+        <span>No facturar alojamiento (por ejemplo, hospitalización)</span>
       </label>
     </div>
     <button class="btn btn-dark" onclick="addManual()">Guardar huésped</button>
@@ -402,7 +418,7 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
   <div class="card">
     <div class="card-title">Numeración y tarifas</div>
     <div class="g4" style="margin-bottom:10px">
-      <div class="fg"><label>Nº factura inicial</label><input type="number" id="cfgNum" value="3809"></div>
+      <div class="fg"><label>Nº factura inicial</label><input type="number" id="cfgNum" value="3961" onchange="guardarNumeroFacturaPeriodo()"></div>
       <div class="fg"><label>Año (2 dígitos)</label><input type="number" id="cfgAno" value="26"></div>
       <div class="fg"><label>Pensión completa (€/día)</label><input type="number" id="cfgTar" value="43.58" step="0.01"></div>
       <div class="fg"><label>IGIC (%)</label><input type="number" id="cfgIgic" value="7" step="0.1"></div>
@@ -410,7 +426,7 @@ textarea{resize:vertical;min-height:130px;font-family:'JetBrains Mono',monospace
     <div class="g3">
       <div class="fg"><label>Menú infantil (€/día)</label><input type="number" id="cfgMin" value="5.00" step="0.01"></div>
       <div class="fg"><label>Snack escolar (€/día)</label><input type="number" id="cfgSnack" value="2.18" step="0.01"></div>
-      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="5.09" step="0.01"></div>
+      <div class="fg"><label>Picnic de salida (€)</label><input type="number" id="cfgPicnic" value="5.08" step="0.01"></div>
     </div>
     <div class="tip" id="tarifaPeriodo">Tarifas aplicables a la quincena seleccionada.</div>
     <div class="btn-row right" style="margin-top:14px">
@@ -542,8 +558,43 @@ function festKey(){return `urpi_festivos_${S.qAno}_${S.qMes}_${S.qTipo}`;}
 // qKey: clave de quincena para filtrar en Firestore
 function qKey(){return `${S.qAno}_${S.qMes}_${S.qTipo}`;}
 
+// Festivos oficiales que afectan al snack escolar. Los días locales o de
+// libre disposición continúan pudiéndose añadir manualmente en "Festivos".
+const FESTIVOS_SNACK_OFICIALES=new Set(['2026-10-12']);
+function incorporarFestivosOficiales(){
+  if(!S.qIni||!S.qFin)return;
+  const oficiales=[...FESTIVOS_SNACK_OFICIALES].filter(fecha=>{
+    const d=pd(fecha);return d&&d>=normDate(S.qIni)&&d<=normDate(S.qFin);
+  });
+  S.festivos=[...new Set([...(S.festivos||[]),...oficiales])].sort();
+  localStorage.setItem(festKey(),JSON.stringify(S.festivos));
+}
+
+const NUMERO_FACTURA_INICIAL_POR_QUINCENA={'2026_10_1':3961};
+function facturaKey(){return `urpi_factura_inicial_${qKey()}`;}
+function cargarNumeroFacturaPeriodo(){
+  const el=document.getElementById('cfgNum');if(!el)return;
+  const guardado=parseInt(localStorage.getItem(facturaKey()));
+  const sugerido=NUMERO_FACTURA_INICIAL_POR_QUINCENA[qKey()];
+  if(Number.isFinite(guardado))el.value=guardado;
+  else if(Number.isFinite(sugerido))el.value=sugerido;
+}
+function guardarNumeroFacturaPeriodo(){
+  const valor=parseInt(document.getElementById('cfgNum')?.value);
+  if(Number.isFinite(valor))localStorage.setItem(facturaKey(),String(valor));
+}
+
+const ORDEN_HOSTALES_FACTURA=['La Hostería','Milema','Mencey'];
+function entradasHostalesOrdenadas(byH){
+  return Object.entries(byH).sort(([a],[b])=>{
+    const ia=ORDEN_HOSTALES_FACTURA.indexOf(a),ib=ORDEN_HOSTALES_FACTURA.indexOf(b);
+    const oa=ia<0?Number.MAX_SAFE_INTEGER:ia,ob=ib<0?Number.MAX_SAFE_INTEGER:ib;
+    return oa-ob;
+  });
+}
+
 const TARIFAS_HASTA_AGOSTO_2026={tar:40,min:4.59,snack:2,picnic:4.67};
-const TARIFAS_DESDE_SEPTIEMBRE_2026={tar:43.58,min:5,snack:2.18,picnic:5.09};
+const TARIFAS_DESDE_SEPTIEMBRE_2026={tar:43.58,min:5,snack:2.18,picnic:5.08};
 function usaTarifasSeptiembre2026(){return S.qAno>2026||(S.qAno===2026&&S.qMes>=9);}
 function aplicarTarifasPeriodo(){const nuevas=usaTarifasSeptiembre2026();const t=nuevas?TARIFAS_DESDE_SEPTIEMBRE_2026:TARIFAS_HASTA_AGOSTO_2026;const valores={cfgTar:t.tar,cfgMin:t.min,cfgSnack:t.snack,cfgPicnic:t.picnic};Object.entries(valores).forEach(([id,valor])=>{const el=document.getElementById(id);if(el)el.value=Number(valor).toFixed(2);});const aviso=document.getElementById('tarifaPeriodo');if(aviso)aviso.textContent=nuevas?'Tarifas nuevas vigentes desde la 1.ª quincena de septiembre de 2026. Importes antes de IGIC.':'Tarifas anteriores, conservadas para agosto de 2026 y periodos previos. Importes antes de IGIC.';}
 
@@ -621,6 +672,7 @@ async function cargar(){
     S.huespedes=data.huespedes||[];
     const fv=localStorage.getItem(festKey());
     S.festivos=fv?JSON.parse(fv):[];
+    incorporarFestivosOficiales();
     const cfg=localStorage.getItem('urpi_config');
     if(cfg){const c=JSON.parse(cfg);S.config=c;
       const em=document.getElementById('cfgEmail');if(em)em.value=c.email||'pablosarria@urpihospedajes.com';
@@ -661,6 +713,7 @@ async function cambiarQ(){
   S.qFin=S.qTipo===1?new Date(S.qAno,S.qMes-1,15):new Date(S.qAno,S.qMes-1,dm);
   document.getElementById('qRange').textContent=fmt(S.qIni)+' → '+fmt(S.qFin);
   aplicarTarifasPeriodo();
+  cargarNumeroFacturaPeriodo();
 
   const cargado=await cargar();
 
@@ -713,6 +766,15 @@ function tipoH(fnac,h){
   // Sin datos: adulto por defecto
   return 'adulto';
 }
+function nombreFactura(h){
+  const base=String(h?.nombre||'')
+    .replace(/\s*\(\s*(?:menor\s+)?\d+\s*a[ñn]os?\s*\)\s*$/i,'')
+    .trim();
+  const tipo=tipoH(h?.fnac,h);
+  if(tipo==='adulto')return base;
+  const e=edadParaSnack(h,S.qFin||new Date());
+  return Number.isFinite(e)?`${base} (${e} años)`:base;
+}
 function edadParaSnack(h,ref){
   if(!h)return null;
   if(!h.fnac&&h.tipoManual==='bebe')return 2;
@@ -736,7 +798,12 @@ function calcLectivos(ini,fin,h){
   if(!ini||!fin||!S.qIni||!S.qFin)return 0;
   const norm=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
   const qIni=norm(S.qIni),entNorm=norm(ini);
-  const desdeDate=entNorm<qIni?new Date(qIni):new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
+  // Quien continúa desde la quincena anterior recibe snack desde el primer
+  // día del periodo. En un alta nueva, el día de entrada queda excluido.
+  const esContinuacion=entNorm<qIni||Boolean(h?.origenCierre);
+  const desdeDate=esContinuacion
+    ?new Date(qIni)
+    :new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
   const hasta=norm(new Date(Math.min(fin.getTime(),S.qFin.getTime())));
   let n=0;const d=new Date(desdeDate);
   while(d<=hasta){
@@ -1168,7 +1235,7 @@ function renderPrev(personas){
       <div class="pprev-ext">
         <label><input type="checkbox" ${p.picnic?'checked':''} onchange="window._prev[${i}].picnic=this.checked"> Picnic</label>
         <label>Min días: <input type="number" value="${p.minDias}" min="0" onchange="window._prev[${i}].minDias=parseInt(this.value)||0"></label>
-        <label>Snack días: <input type="number" value="${p.snackDias}" min="0" onchange="window._prev[${i}].snackDias=parseInt(this.value)||0"></label>
+        <label>Snack días: <input type="number" value="${p.snackDias}" min="0" onchange="window._prev[${i}].snackDias=parseInt(this.value)||0;window._prev[${i}].snackManual=true"></label>
         <label><input type="checkbox" ${p.sinSnack?'checked':''} onchange="window._prev[${i}].sinSnack=this.checked"> Sin snack (no escolarizado)</label>
       </div>
     </div>`;
@@ -1223,7 +1290,9 @@ async function confirmarTrasladoMasivo(){
           hostal:mv.destino,
           fechaEntrada:fecha,fechaSalida:'',
           cabeza:ex.cabeza,picnic:false,
-          minDias:ex.minDias||0,snackDias:ex.snackDias||0
+          minDias:ex.minDias||0,snackDias:ex.snackDias||0,
+          snackManual:Boolean(ex.snackManual),sinSnack:Boolean(ex.sinSnack),
+          sinAlojamiento:Boolean(ex.sinAlojamiento),tipoManual:ex.tipoManual||''
         });
         procesados++;
       } else {
@@ -1320,14 +1389,15 @@ async function confirmar(){
         hostal:traslado.destino||hostal,
         fechaEntrada:fecha,fechaSalida:'',
         cabeza:p.cabeza,picnic:false,
-        minDias:p.minDias||0,snackDias:p.snackDias||0
+        minDias:p.minDias||0,snackDias:p.snackDias||0,
+        snackManual:Boolean(p.snackManual),sinSnack:Boolean(p.sinSnack)
       });
     } else if(tipo==='INICIO'){
-      if(ex){ex.hostal=hostal;ex.fechaEntrada=fecha;}
-      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
+      if(ex){Object.assign(ex,{hostal,fechaEntrada:fecha,fnac:p.fnac||ex.fnac,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias,snackManual:Boolean(p.snackManual),sinSnack:Boolean(p.sinSnack)});}
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:fecha,fechaSalida:'',cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias,snackManual:Boolean(p.snackManual),sinSnack:Boolean(p.sinSnack)});
     } else {
       if(ex){ex.fechaSalida=fecha;if(p.picnic)ex.picnic=true;}
-      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias});
+      else S.huespedes.push({id:Date.now()+Math.random(),nombre:p.nombre,fnac:p.fnac,hostal,fechaEntrada:'',fechaSalida:fecha,cabeza:p.cabeza,picnic:p.picnic,minDias:p.minDias,snackDias:p.snackDias,snackManual:Boolean(p.snackManual),sinSnack:Boolean(p.sinSnack)});
     }
   });
   window._traslado=null;
@@ -1345,11 +1415,14 @@ async function addManual(){
     nombre,
     fnac:document.getElementById('mFnac').value,
     hostal,
+    tipoManual:document.getElementById('mTipoManual').value,
     cabeza:document.getElementById('mCabeza').value==='si',
     picnic:document.getElementById('mPicnic').value==='si',
     minDias:parseInt(document.getElementById('mMin').value)||0,
     snackDias:parseInt(document.getElementById('mSnack').value)||0,
+    snackManual:document.getElementById('mSnackManual').checked,
     sinSnack:document.getElementById('mSinSnack').checked,
+    sinAlojamiento:document.getElementById('mSinAlojamiento').checked,
     fechaEntrada:document.getElementById('mFechaEnt').value,
     fechaSalida:document.getElementById('mFechaSal').value
   };
@@ -1377,7 +1450,10 @@ async function addManual(){
   document.getElementById('mFnac').value='';
   document.getElementById('mFechaEnt').value='';
   document.getElementById('mFechaSal').value='';
+  document.getElementById('mTipoManual').value='';
+  document.getElementById('mSnackManual').checked=false;
   document.getElementById('mSinSnack').checked=false;
+  document.getElementById('mSinAlojamiento').checked=false;
   showMsg('manual','✓ Huésped guardado correctamente','ok');
   cntNav();
 }
@@ -1407,7 +1483,7 @@ function getTarifas(){
     tar:parseFloat(document.getElementById('cfgTar')?.value||(usaTarifasSeptiembre2026()?43.58:40)),
     pMin:parseFloat(document.getElementById('cfgMin')?.value||(usaTarifasSeptiembre2026()?5:4.59)),
     pSnack:parseFloat(document.getElementById('cfgSnack')?.value||(usaTarifasSeptiembre2026()?2.18:2)),
-    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||(usaTarifasSeptiembre2026()?5.09:4.67)),
+    pPicnic:parseFloat(document.getElementById('cfgPicnic')?.value||(usaTarifasSeptiembre2026()?5.08:4.67)),
     igicPct:(parseFloat(document.getElementById('cfgIgic')?.value||7))/100
   };
 }
@@ -1415,17 +1491,16 @@ function calcImp(h){
   const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
   const{dias,ini,fin}=calcDias(h);
   const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
-  const aloj=bebe?0:dias*tar;
+  const aloj=(bebe||h.sinAlojamiento)?0:dias*tar;
   // Min Iniciación: siempre manual (h.minDias)
   const minDiasCalc=h.minDias||0;
   const minI=minDiasCalc*pMin;
-  // Recalcular snack automáticamente para menores escolarizados
-  let snackDias=h.snackDias||0;
-  if(ini&&fin&&!h.sinSnack&&(h.fnac||menor)){
-    snackDias=calcLectivos(ini,fin,h);
-  } else if(h.sinSnack){
-    snackDias=0;
-  }
+  // Automático por calendario, con posibilidad de anularlo o fijar un
+  // número exacto de días para casos de escolarización parcial.
+  let snackDias=0;
+  if(h.sinSnack)snackDias=0;
+  else if(h.snackManual)snackDias=Math.max(0,Number(h.snackDias)||0);
+  else if(ini&&fin)snackDias=calcLectivos(ini,fin,h);
   const snackI=snackDias*pSnack;
   const picnic=h.picnic?pPicnic:0;
   const baseSinPicnic=Math.round((aloj+minI+snackI)*100)/100;
@@ -1434,7 +1509,7 @@ function calcImp(h){
   const igicSinPicnic=Math.round(baseSinPicnic*igicPct*100)/100;
   const igicPicnic=Math.round(picnic*igicPct*100)/100;
   const igic=Math.round((igicSinPicnic+igicPicnic)*100)/100;
-  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,baseSinPicnic,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
+  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,baseSinPicnic,base,igicSinPicnic,igicPicnic,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
 }
 function esFacturableEnPeriodo(h){
   const i=calcImp(h);
@@ -1477,7 +1552,7 @@ function renderH(){
   if(!filtrados.length){a.innerHTML='<div class="empty"><div class="empty-txt">No se encontró ningún huésped con ese nombre.</div></div>';return;}
   const byH={};filtrados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   document.getElementById('hSub').textContent=`${filtrados.length} huéspedes · ${Object.keys(byH).length} hostales`;
-  a.innerHTML=Object.entries(byH).map(([hostal,hs])=>{
+  a.innerHTML=entradasHostalesOrdenadas(byH).map(([hostal,hs])=>{
     const tot=hs.reduce((s,h)=>s+calcImp(h).total,0);
     return `<div class="hsect">
       <div class="hhead"><span>${esc(hostal)}</span><span class="htotal">${tot.toFixed(2)} €</span></div>
@@ -1502,7 +1577,9 @@ function renderH(){
             ${h.picnic?'<span class="badge b-picnic">Picnic</span>':''}
             ${h.snackDias?`<span class="badge b-snack">Snack ×${h.snackDias}d</span>`:''}
             ${h.minDias?`<span class="badge b-min">Min ×${h.minDias}d</span>`:''}
+            ${h.snackManual?'<span class="badge b-snack">Snack manual</span>':''}
             ${h.sinSnack?'<span class="badge" style="background:#fef9c3;color:#854d0e">Sin snack</span>':''}
+            ${h.sinAlojamiento?'<span class="badge" style="background:#dbeafe;color:#1e3a8a">Sin alojamiento</span>':''}
           </div>
         </div>`;
       }).join('')}</div>
@@ -1527,6 +1604,7 @@ async function editH(id){
   const h=S.huespedes.find(x=>String(x.id)===String(id));if(!h)return;
   document.getElementById('mNombre').value=h.nombre;
   document.getElementById('mFnac').value=h.fnac||'';
+  document.getElementById('mTipoManual').value=h.tipoManual||'';
   document.getElementById('mHostal').value=h.hostal;
   document.getElementById('mFechaEnt').value=h.fechaEntrada||'';
   document.getElementById('mFechaSal').value=h.fechaSalida||'';
@@ -1534,7 +1612,9 @@ async function editH(id){
   document.getElementById('mPicnic').value=h.picnic?'si':'no';
   document.getElementById('mMin').value=h.minDias||0;
   document.getElementById('mSnack').value=h.snackDias||0;
+  document.getElementById('mSnackManual').checked=h.snackManual||false;
   document.getElementById('mSinSnack').checked=h.sinSnack||false;
+  document.getElementById('mSinAlojamiento').checked=h.sinAlojamiento||false;
   // Guardar el ID que se está editando para actualizarlo al guardar
   window._editandoId=id;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -1573,7 +1653,7 @@ function renderR(){
     <div class="stat"><div class="stat-v">${Object.keys(byH).length}</div><div class="stat-l">Hostales</div></div>
     <div class="stat"><div class="stat-v">${totB.toFixed(0)} €</div><div class="stat-l">Base imponible</div></div>
     <div class="stat accent"><div class="stat-v">${totT.toFixed(0)} €</div><div class="stat-l">Total con IGIC</div></div>
-  </div>`+Object.entries(byH).map(([hostal,hs])=>{
+  </div>`+entradasHostalesOrdenadas(byH).map(([hostal,hs])=>{
     const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
     const hI=hs.reduce((s,h)=>s+calcImp(h).igic,0);
     const hT=Math.round((hB+hI)*100)/100;
@@ -1617,7 +1697,7 @@ function verPreview(){
   let numFact=parseInt(document.getElementById('cfgNum').value);
   const anoFact=document.getElementById('cfgAno').value;
   let totB=0,totI=0,totT=0;
-  const rows=Object.entries(byH).map(([hostal,hs])=>{
+  const rows=entradasHostalesOrdenadas(byH).map(([hostal,hs])=>{
     const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
     const hI=hs.reduce((s,h)=>s+calcImp(h).igic,0);
     const hT=Math.round((hB+hI)*100)/100;
@@ -1856,7 +1936,7 @@ async function generarExcel(){
 
     wc(1,num,'center');
     mg(ws,r,2,r,7);
-    wc(2,h.nombre,'left');
+    wc(2,nombreFactura(h),'left');
     wc(8,tipo,'center');
     wc(9,fmtD(imp.ini),'center');
     wc(10,fmtD(imp.fin),'center');
@@ -1884,8 +1964,9 @@ async function generarExcel(){
       if(numFmt)cell.numFmt=numFmt;
     }
 
-    wc(1,num,'center');mg(ws,r,2,r,7);wc(2,h.nombre,'left');
-    wc(8,tipo,'center');wc(9,fmtD(imp.fin),'center');wc(10,fmtD(imp.fin),'center');
+    const fechaPicnic=h.fechaSalida?pd(h.fechaSalida):new Date(imp.fin.getFullYear(),imp.fin.getMonth(),imp.fin.getDate()+1);
+    wc(1,num,'center');mg(ws,r,2,r,7);wc(2,nombreFactura(h),'left');
+    wc(8,tipo,'center');wc(9,fmtD(fechaPicnic),'center');wc(10,fmtD(fechaPicnic),'center');
     wc(11,0,'center');wc(12,0,'center','#,##0.00 €');
     wc(17,1,'center');wc(18,pb,'center','#,##0.00 €');
     wc(19,pb,'center','#,##0.00 €');wc(20,pi,'center','#,##0.00 €');wc(21,pt,'center','#,##0.00 €');
@@ -1952,7 +2033,7 @@ async function generarExcel(){
 
   // BUILD WORKBOOK
   let numFact=numBase;
-  for(const [hostal,hs] of Object.entries(byH)){
+  for(const [hostal,hs] of entradasHostalesOrdenadas(byH)){
     const ws=wb.addWorksheet(hostal.substring(0,31));
     COL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w;});
     const nf=`${numFact}-${anoFact}`;
@@ -1962,18 +2043,16 @@ async function generarExcel(){
     let rowsEnPagina=0; // contador de filas de datos en la página actual
 
     for(const h of hs){
-      const{dias,ini,fin}=calcDias(h);
-      const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
-      const aloj=bebe?0:dias*tar;
-      // Min Iniciación: siempre manual
-      const minDiasCalc=h.minDias||0;
-      const minI=minDiasCalc*pMin;
-      // Recalcular snack con festivos actuales para menores
-      const snackDiasCalc=h.sinSnack?0:(menor&&!bebe&&ini&&fin?calcLectivos(ini,fin,h):(h.snackDias||0));
-      const snackI=snackDiasCalc*pSnack;
-      const base=Math.round((aloj+minI+snackI)*100)/100;
-      const igic=Math.round(base*igicPct*100)/100;
-      const imp={dias,ini,fin,aloj,base,igic,total:Math.round((base+igic)*100)/100,bebe,menor,minDias:minDiasCalc,snackDias:snackDiasCalc};
+      // Utilizar exactamente la misma lógica validada que muestra la app.
+      // Así el Excel respeta hospitalización, snack manual y tipo manual.
+      const calculado=calcImp(h);
+      const imp={
+        ...calculado,
+        base:calculado.baseSinPicnic,
+        igic:calculado.igicSinPicnic??Math.round(calculado.baseSinPicnic*igicPct*100)/100,
+        total:Math.round((calculado.baseSinPicnic+(calculado.igicSinPicnic??Math.round(calculado.baseSinPicnic*igicPct*100)/100))*100)/100
+      };
+      const base=imp.base;
 
       // Calcular cuántas filas ocupará este huésped (1 normal + 1 picnic si tiene)
       const filasNecesarias=h.picnic?2:1;
