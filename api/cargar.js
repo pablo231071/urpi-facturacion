@@ -33,6 +33,8 @@ function puntuacion(h) {
     (h.fnac ? 2 : 0) +
     (h.cabeza ? 1 : 0) +
     (h.sinSnack ? 1 : 0) +
+    (h.snackManual ? 1 : 0) +
+    (h.sinAlojamiento ? 1 : 0) +
     (h.minDias ? 1 : 0) +
     (h.snackDias ? 1 : 0)
   );
@@ -105,6 +107,8 @@ module.exports = async function handler(req, res) {
         importado: Boolean(f.importado),
         tipoManual: f.tipo_manual || '',
         sinSnack: Boolean(f.sin_snack),
+        snackManual: Boolean(f.snack_manual),
+        sinAlojamiento: Boolean(f.sin_alojamiento),
         origenCierre: f.origen_cierre || '',
         estanciaId: f.estancia_id || '',
         orden: Number(f.orden) || 0,
@@ -193,3 +197,4 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
