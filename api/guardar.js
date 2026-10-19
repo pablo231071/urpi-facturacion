@@ -192,6 +192,8 @@ module.exports = async function handler(req, res) {
         orden,
         tipo_manual: String(h.tipoManual || ''),
         sin_snack: Boolean(h.sinSnack),
+        snack_manual: Boolean(h.snackManual),
+        sin_alojamiento: Boolean(h.sinAlojamiento),
         origen_cierre: String(h.origenCierre || ''),
         estancia_id: String(h.estanciaId || ''),
         quincena: quincenaLimpia
@@ -401,6 +403,23 @@ module.exports = async function handler(req, res) {
                   admin.firestore.FieldValue.serverTimestamp()
               };
 
+              // Si es la copia automática creada por este cierre, mantenerla
+              // sincronizada con las correcciones hechas en la quincena origen.
+              if (existente.origen_cierre === quincenaLimpia) {
+                Object.assign(cambios, {
+                  nombre: h.nombre,
+                  nombre_normalizado: normalizarNombre(h.nombre),
+                  fnac: h.fnac || '',
+                  hostal: h.hostal,
+                  cabeza: Boolean(h.cabeza),
+                  importado: Boolean(h.importado),
+                  tipo_manual: h.tipo_manual || '',
+                  sin_snack: Boolean(h.sin_snack),
+                  snack_manual: false,
+                  sin_alojamiento: Boolean(h.sin_alojamiento)
+                });
+              }
+
               if (h.fecha_salida && !existente.fecha_salida) {
                 cambios.fecha_salida = h.fecha_salida;
               }
@@ -436,6 +455,8 @@ module.exports = async function handler(req, res) {
               orden: siguienteSnap.size + copiasCreadas,
               tipo_manual: h.tipo_manual || '',
               sin_snack: Boolean(h.sin_snack),
+              snack_manual: false,
+              sin_alojamiento: Boolean(h.sin_alojamiento),
               quincena: periodo.siguiente,
               origen_cierre: quincenaLimpia,
               creado_en:
@@ -481,3 +502,4 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
