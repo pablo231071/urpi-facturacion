@@ -347,6 +347,21 @@ module.exports = async function handler(req, res) {
                 admin.firestore.FieldValue.serverTimestamp()
             };
 
+            if (existente.origen_cierre === cierre.origen) {
+              Object.assign(cambios, {
+                nombre: huesped.nombre || '',
+                nombre_normalizado: normalizarNombre(huesped.nombre),
+                fnac: huesped.fnac || '',
+                hostal: huesped.hostal || '',
+                cabeza: Boolean(huesped.cabeza),
+                importado: Boolean(huesped.importado),
+                tipo_manual: huesped.tipo_manual || '',
+                sin_snack: Boolean(huesped.sin_snack),
+                snack_manual: false,
+                sin_alojamiento: Boolean(huesped.sin_alojamiento)
+              });
+            }
+
             if (Number(existente.orden) !== ordenActual) {
               reordenados++;
             }
@@ -397,6 +412,8 @@ module.exports = async function handler(req, res) {
             orden: ordenActual,
             tipo_manual: huesped.tipo_manual || '',
             sin_snack: Boolean(huesped.sin_snack),
+            snack_manual: false,
+            sin_alojamiento: Boolean(huesped.sin_alojamiento),
             quincena: cierre.destino,
             origen_cierre: cierre.origen,
             creado_en:
@@ -500,3 +517,4 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
