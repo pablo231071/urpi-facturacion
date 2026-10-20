@@ -1500,7 +1500,9 @@ function calcImp(h){
   let snackDias=0;
   if(h.sinSnack)snackDias=0;
   else if(h.snackManual)snackDias=Math.max(0,Number(h.snackDias)||0);
-  else if(ini&&fin)snackDias=calcLectivos(ini,fin,h);
+  // Una estancia de cero noches no puede generar snack automático. Si se
+  // necesita cobrar alguno en un caso excepcional, se usa "Snack manual".
+  else if(dias>0&&ini&&fin)snackDias=calcLectivos(ini,fin,h);
   const snackI=snackDias*pSnack;
   const picnic=h.picnic?pPicnic:0;
   const baseSinPicnic=Math.round((aloj+minI+snackI)*100)/100;
