@@ -1520,6 +1520,18 @@ function esFacturableEnPeriodo(h){
   return i.dias>0||i.base!==0||i.igic!==0;
 }
 
+// Cada hostal genera una factura independiente. La base se suma completa y
+// el IGIC se redondea una sola vez sobre el total de esa factura, igual que
+// en el Excel y en la factura contable. Evita diferencias de céntimos por
+// sumar el IGIC ya redondeado huésped a huésped.
+function totalesFactura(huespedes){
+  const{igicPct}=getTarifas();
+  const base=Math.round(huespedes.reduce((s,h)=>s+calcImp(h).base,0)*100)/100;
+  const igic=Math.round(base*igicPct*100)/100;
+  const total=Math.round((base+igic)*100)/100;
+  return{base,igic,total};
+}
+
 function renderH(){
   const a=document.getElementById('hContent');
   document.getElementById('hDuplicados')?.remove();
@@ -1555,7 +1567,7 @@ function renderH(){
   const byH={};filtrados.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
   document.getElementById('hSub').textContent=`${filtrados.length} huéspedes · ${Object.keys(byH).length} hostales`;
   a.innerHTML=entradasHostalesOrdenadas(byH).map(([hostal,hs])=>{
-    const tot=hs.reduce((s,h)=>s+calcImp(h).total,0);
+    const tot=totalesFactura(hs).total;
     return `<div class="hsect">
       <div class="hhead"><span>${esc(hostal)}</span><span class="htotal">${tot.toFixed(2)} €</span></div>
       <div class="hbody">${hs.map(h=>{
@@ -1647,18 +1659,22 @@ function renderR(){
   const facturables=S.huespedes.filter(esFacturableEnPeriodo);
   if(!facturables.length){a.innerHTML='<div class="empty"><div class="empty-icon">≡</div><div class="empty-txt">No hay estancias facturables en este periodo.</div></div>';return;}
   const byH={};facturables.forEach(h=>{if(!byH[h.hostal])byH[h.hostal]=[];byH[h.hostal].push(h);});
-  let totB=0,totI=0;
-  facturables.forEach(h=>{const i=calcImp(h);totB+=i.base;totI+=i.igic;});
-  const totT=Math.round((totB+totI)*100)/100;
+  let totB=0,totI=0,totT=0;
+  entradasHostalesOrdenadas(byH).forEach(([,hs])=>{
+    const t=totalesFactura(hs);
+    totB+=t.base;totI+=t.igic;totT+=t.total;
+  });
+  totB=Math.round(totB*100)/100;
+  totI=Math.round(totI*100)/100;
+  totT=Math.round(totT*100)/100;
   a.innerHTML=`<div class="stats">
     <div class="stat"><div class="stat-v">${facturables.length}</div><div class="stat-l">Huéspedes</div></div>
     <div class="stat"><div class="stat-v">${Object.keys(byH).length}</div><div class="stat-l">Hostales</div></div>
     <div class="stat"><div class="stat-v">${totB.toFixed(0)} €</div><div class="stat-l">Base imponible</div></div>
     <div class="stat accent"><div class="stat-v">${totT.toFixed(0)} €</div><div class="stat-l">Total con IGIC</div></div>
   </div>`+entradasHostalesOrdenadas(byH).map(([hostal,hs])=>{
-    const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
-    const hI=hs.reduce((s,h)=>s+calcImp(h).igic,0);
-    const hT=Math.round((hB+hI)*100)/100;
+    const totales=totalesFactura(hs);
+    const hB=totales.base,hI=totales.igic,hT=totales.total;
     const rows=hs.map(h=>{
       const i=calcImp(h);const t=i.bebe?'Bebé':i.menor?'Menor':'Adulto';
       return `<tr>
@@ -1700,9 +1716,8 @@ function verPreview(){
   const anoFact=document.getElementById('cfgAno').value;
   let totB=0,totI=0,totT=0;
   const rows=entradasHostalesOrdenadas(byH).map(([hostal,hs])=>{
-    const hB=hs.reduce((s,h)=>s+calcImp(h).base,0);
-    const hI=hs.reduce((s,h)=>s+calcImp(h).igic,0);
-    const hT=Math.round((hB+hI)*100)/100;
+    const totales=totalesFactura(hs);
+    const hB=totales.base,hI=totales.igic,hT=totales.total;
     totB+=hB;totI+=hI;totT+=hT;
     return `<div class="gen-fact-row">
       <span><strong>${esc(hostal)}</strong> · Fact. ${numFact++}-${anoFact} · ${hs.length} huéspedes</span>
@@ -2425,3 +2440,4 @@ if(document.readyState==='loading'){
 </script>
 </body>
 </html>
+
