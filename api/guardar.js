@@ -42,6 +42,42 @@ function validarFecha(fecha) {
   );
 }
 
+const PALABRAS_DE_PROSA = new Set([
+  'HOSTAL', 'HABITACION', 'HABITACIONES', 'ALMUERZO', 'CENA',
+  'MANANA', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES',
+  'SABADO', 'DOMINGO', 'ACCEDERA', 'ENTRARA', 'ENTRARAN', 'LLEGARA',
+  'LLEGARAN', 'HABLAMOS', 'TELEFONO', 'ESCRIBIO', 'CHICO', 'CHICA',
+  'MUJER', 'MUJERES', 'MENOR', 'MENORES', 'UCRANIANO', 'UCRANIANA',
+  'UCRANIANOS', 'UCRANIANAS', 'DESPUES', 'ANTES', 'UNIDAD', 'FAMILIAR',
+  'FAMILIA', 'PADRE', 'MADRE', 'HIJO', 'HIJA', 'PERSONA', 'PERSONAS',
+  'COMO', 'POR', 'PARA', 'HOY', 'DIA', 'DIAS'
+]);
+
+function pareceNombrePersona(nombre) {
+  const limpio = String(nombre || '')
+    .replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i, '')
+    .replace(/\s*\*\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    limpio.length < 2 ||
+    limpio.length > 100 ||
+    /[0-9@<>_=+\\/\[\]{}:;,.!?]/.test(limpio)
+  ) {
+    return false;
+  }
+
+  const palabras = normalizarNombre(limpio).split(' ').filter(Boolean);
+
+  if (palabras.length === 0 || palabras.length > 8) return false;
+  if (palabras.some((p) => PALABRAS_DE_PROSA.has(p))) return false;
+
+  return palabras.every((p) =>
+    /^[A-ZÑª]+(?:['’\-][A-ZÑª]+)*$/.test(p)
+  );
+}
+
 function datosPeriodo(clave) {
   const [ano, mes, tipo] = clave.split('_').map(Number);
 
@@ -163,6 +199,12 @@ module.exports = async function handler(req, res) {
 
       if (!nombre) {
         throw new Error('Uno de los huéspedes no tiene nombre');
+      }
+
+      if (!pareceNombrePersona(nombre)) {
+        throw new Error(
+          `El texto "${nombre.slice(0, 80)}" no parece un nombre de huésped`
+        );
       }
 
       if (!hostal) {

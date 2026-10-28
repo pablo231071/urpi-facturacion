@@ -848,10 +848,21 @@ function esCabeceraEmail(s){
   if(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(l))return true;
   return false;
 }
+const PALABRAS_PROSA_CORREO=new Set([
+  'HOSTAL','HABITACION','HABITACIONES','ALMUERZO','CENA','MANANA',
+  'LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO','DOMINGO',
+  'ACCEDERA','ENTRARA','ENTRARAN','LLEGARA','LLEGARAN','HABLAMOS',
+  'TELEFONO','ESCRIBIO','CHICO','CHICA','MUJER','MUJERES','MENOR',
+  'MENORES','UCRANIANO','UCRANIANA','UCRANIANOS','UCRANIANAS',
+  'DESPUES','ANTES','UNIDAD','FAMILIAR','FAMILIA','PADRE','MADRE',
+  'HIJO','HIJA','PERSONA','PERSONAS','COMO','POR','PARA','HOY','DIA','DIAS'
+]);
 function esNombre(s){
   const l=s.trim();
-  if(l.length<5||esSkip(l)||esNac(l)||esCabeceraEmail(l)||/^\d/.test(l)||/[0-9]{4,}/.test(l))return false;
-  return l.split(/\s+/).filter(p=>p.length>1&&/^[A-ZÁÉÍÓÚÜÑ]/.test(p)).length>=2;
+  if(l.length<5||l.length>100||esSkip(l)||esNac(l)||esCabeceraEmail(l)||/[0-9@<>_=+\\/\[\]{}:;,.!?]/.test(l))return false;
+  const palabras=l.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().split(/\s+/).filter(Boolean);
+  if(palabras.length<2||palabras.length>8||palabras.some(p=>PALABRAS_PROSA_CORREO.has(p)))return false;
+  return palabras.every(p=>/^[A-ZÑª]+(?:['’\-][A-ZÑª]+)*$/.test(p));
 }
 function detHostal(txt){
   const u=txt.toUpperCase();

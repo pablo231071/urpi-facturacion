@@ -17,6 +17,26 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+const HOSTALES_VALIDOS = new Set([
+  'Mencey',
+  'La Molina',
+  'La Hostería',
+  'Milema',
+  'Casa Lima',
+  'María Cristina'
+]);
+
+const PALABRAS_DE_PROSA = new Set([
+  'HOSTAL', 'HABITACION', 'HABITACIONES', 'ALMUERZO', 'CENA',
+  'MANANA', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES',
+  'SABADO', 'DOMINGO', 'ACCEDERA', 'ENTRARA', 'ENTRARAN', 'LLEGARA',
+  'LLEGARAN', 'HABLAMOS', 'TELEFONO', 'ESCRIBIO', 'CHICO', 'CHICA',
+  'MUJER', 'MUJERES', 'MENOR', 'MENORES', 'UCRANIANO', 'UCRANIANA',
+  'UCRANIANOS', 'UCRANIANAS', 'DESPUES', 'ANTES', 'UNIDAD', 'FAMILIAR',
+  'FAMILIA', 'PADRE', 'MADRE', 'HIJO', 'HIJA', 'PERSONA', 'PERSONAS',
+  'COMO', 'POR', 'PARA', 'HOY', 'DIA', 'DIAS'
+]);
+
 function normalizarNombre(valor) {
   return String(valor || '')
     .replace(/\s*\(\s*\d+\s*a[ñn]os?\s*\)\s*$/i, '')
@@ -63,6 +83,49 @@ function esCabecera(nombre) {
     /^NOMBRE(?:S)?(?:\s+Y\s+APELLIDO(?:S)?)?(?:\s|$)/.test(n) &&
     /(?:APELLIDO|FECHA|NAC|NACIONALIDAD|NIE|PASAPORTE|HORA)/.test(n)
   );
+}
+
+function esNombrePersona(nombre) {
+  const limpio = String(nombre || '').replace(/\s+/g, ' ').trim();
+
+  if (
+    limpio.length < 4 ||
+    limpio.length > 100 ||
+    /[0-9@<>_=+\\/\[\]{}:;,.!?]/.test(limpio)
+  ) {
+    return false;
+  }
+
+  const normalizado = normalizarNombre(limpio);
+  const palabras = normalizado.split(' ').filter(Boolean);
+
+  if (palabras.length < 2 || palabras.length > 8) return false;
+  if (palabras.some((p) => PALABRAS_DE_PROSA.has(p))) return false;
+
+  return palabras.every((p) =>
+    /^[A-ZÑª]+(?:['’\-][A-ZÑª]+)*$/.test(p)
+  );
+}
+
+function esFechaNacimientoValida(fnac, fechaMovimiento) {
+  if (!validarFecha(fnac)) return false;
+
+  const nacimiento = new Date(`${fnac}T12:00:00Z`);
+  const movimiento = new Date(`${fechaMovimiento}T12:00:00Z`);
+
+  if (nacimiento > movimiento) return false;
+
+  let edad = movimiento.getUTCFullYear() - nacimiento.getUTCFullYear();
+  const mes = movimiento.getUTCMonth() - nacimiento.getUTCMonth();
+
+  if (
+    mes < 0 ||
+    (mes === 0 && movimiento.getUTCDate() < nacimiento.getUTCDate())
+  ) {
+    edad--;
+  }
+
+  return edad >= 0 && edad <= 120;
 }
 
 function distancia(a, b) {
@@ -258,10 +321,10 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    if (!hostalLimpio) {
+    if (!HOSTALES_VALIDOS.has(hostalLimpio)) {
       return res.status(400).json({
         ok: false,
-        error: 'Falta el hostal'
+        error: 'Hostal no válido'
       });
     }
 
@@ -272,16 +335,35 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const personasLimpias = personas
-      .map((p) => ({
+    const personasRecibidas = personas.map((p) => ({
         nombre: String(p.nombre || '')
           .replace(/\s+/g, ' ')
           .trim(),
         fnac: String(p.fnac || '').trim(),
         cabeza: Boolean(p.cabeza),
         picnic: Boolean(p.picnic)
-      }))
-      .filter((p) => p.nombre && !esCabecera(p.nombre));
+      }));
+
+    const personasLimpias = personasRecibidas.filter(
+      (p) => p.nombre && !esCabecera(p.nombre)
+    );
+
+    const personasInvalidas = personasLimpias.filter(
+      (p) =>
+        !esNombrePersona(p.nombre) ||
+        !esFechaNacimientoValida(p.fnac, fechaLimpia)
+    );
+
+    if (personasInvalidas.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          'El correo contiene texto interpretado como huésped; movimiento rechazado para evitar datos incorrectos',
+        rechazados: personasInvalidas
+          .slice(0, 5)
+          .map((p) => p.nombre.slice(0, 100))
+      });
+    }
 
     if (
       personasLimpias.length === 0 ||
@@ -726,3 +808,4 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
