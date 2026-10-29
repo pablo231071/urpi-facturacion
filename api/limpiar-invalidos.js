@@ -94,6 +94,15 @@ async function localizarInvalidos(quincena) {
     .filter((h) => esCabecera(h.nombre) || !pareceNombrePersona(h.nombre));
 }
 
+function escaparHtml(valor) {
+  return String(valor || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Automation-Secret');
@@ -126,6 +135,23 @@ module.exports = async function handler(req, res) {
       fechaEntrada,
       fechaSalida
     }));
+
+    if (req.method === 'GET' && req.query.interfaz === '1') {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+      return res.status(200).send(`<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Confirmar limpieza URPI</title>
+<style>body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#172033}h1{font-size:26px}li{margin:8px 0;line-height:1.35}button{background:#b42318;color:white;border:0;border-radius:8px;padding:13px 18px;font-size:16px;font-weight:700;cursor:pointer}.aviso{background:#fff4e5;border:1px solid #f4b860;border-radius:8px;padding:14px;margin:18px 0}</style>
+</head><body><h1>Limpieza de registros falsos</h1>
+<div class="aviso">Se encontraron <strong>${detalle.length}</strong> registros inválidos en ${escaparHtml(quincena)}. El botón solo funcionará si la cantidad sigue siendo exactamente la misma.</div>
+<ol>${detalle.map((h) => `<li><strong>${escaparHtml(h.nombre)}</strong> — ${escaparHtml(h.hostal)}</li>`).join('')}</ol>
+<form method="post" action="/api/limpiar-invalidos">
+<input type="hidden" name="quincena" value="${escaparHtml(quincena)}">
+<input type="hidden" name="esperado" value="${detalle.length}">
+<button type="submit">Eliminar definitivamente los ${detalle.length} registros falsos</button>
+</form></body></html>`);
+    }
 
     if (req.method === 'GET') {
       return res.status(200).json({
