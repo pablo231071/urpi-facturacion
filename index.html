@@ -1512,8 +1512,11 @@ function calcDias(h){
 function calcDiasAlojamiento(h,ini,fin,dias){
   if(h.sinAlojamiento||!dias)return 0;
 
-  // Sin fecha de nacimiento se respeta el tipo manual importado.
-  if(!h.fnac)return tipoH(h.fnac,h)==='bebe'?0:dias;
+  // Una clasificación manual revisada prevalece sobre una fecha de
+  // nacimiento errónea importada de facturas antiguas.
+  if(h.tipoManual==='adulto'||h.tipoManual==='menor')return dias;
+  if(h.tipoManual==='bebe')return 0;
+  if(!h.fnac)return dias;
 
   // El alojamiento comienza a cobrarse el día exacto en que cumple 3 años.
   // Se calcula noche a noche para no cobrar como menor toda la quincena a
@@ -1554,7 +1557,14 @@ function calcImp(h){
   // necesita cobrar alguno en un caso excepcional, se usa "Snack manual".
   else if(dias>0&&ini&&fin)snackDias=calcLectivos(ini,fin,h);
   const snackI=snackDias*pSnack;
-  const picnic=h.picnic?pPicnic:0;
+  // El picnic se factura en la quincena de salida, no en las quincenas
+  // anteriores aunque el fin de estancia ya esté registrado.
+  const salidaPicnic=h.fechaSalida?pd(h.fechaSalida):null;
+  const picnicEnPeriodo=Boolean(
+    h.picnic&&salidaPicnic&&S.qIni&&S.qFin&&
+    salidaPicnic>=normDate(S.qIni)&&salidaPicnic<=normDate(S.qFin)
+  );
+  const picnic=picnicEnPeriodo?pPicnic:0;
   const baseSinPicnic=Math.round((aloj+minI+snackI)*100)/100;
   const base=Math.round((baseSinPicnic+picnic)*100)/100;
   // El Excel emite el picnic en una línea separada; se redondea el IGIC por línea.
