@@ -227,27 +227,67 @@ function convertirSnap(snap) {
   }));
 }
 
-function buscarActivo(registros, persona, hostal) {
-  const coincidencias = registros.filter(
-    (h) =>
-      nombresCoinciden(h.nombre, persona.nombre) &&
-      !h.fecha_salida
+function fechaNacimientoNormalizada(valor) {
+  return String(valor || '').trim().slice(0, 10);
+}
+
+function candidatosPorIdentidad(registros, persona, soloActivos) {
+  const coincidencias = registros.filter((h) =>
+    nombresCoinciden(h.nombre, persona.nombre) &&
+    (!soloActivos || !h.fecha_salida)
+  );
+  const fnacPersona = fechaNacimientoNormalizada(persona.fnac);
+
+  if (!fnacPersona) return coincidencias;
+
+  const exactos = coincidencias.filter(
+    (h) => fechaNacimientoNormalizada(h.fnac) === fnacPersona
   );
 
-  return (
-    coincidencias.find((h) => h.hostal === hostal) ||
-    (coincidencias.length === 1 ? coincidencias[0] : null)
+  if (exactos.length > 0) return exactos;
+
+  // Si existe otra persona con el mismo nombre pero distinta fecha de
+  // nacimiento, no se puede tratar como traslado ni como fin de estancia.
+  // Solo se admite el registro antiguo sin fecha cuando está en el mismo
+  // hostal y no hay otra coincidencia posible.
+  return coincidencias.filter(
+    (h) => !fechaNacimientoNormalizada(h.fnac)
+  );
+}
+
+function elegirCoincidencia(coincidencias, persona, hostal) {
+  const mismoHostal = coincidencias.filter(
+    (h) => h.hostal === hostal
+  );
+
+  if (mismoHostal.length === 1) return mismoHostal[0];
+  if (mismoHostal.length > 1) return null;
+
+  // Un cambio automático de hostal solo es seguro si el correo incluye
+  // fecha de nacimiento y queda una única identidad compatible.
+  if (
+    fechaNacimientoNormalizada(persona.fnac) &&
+    coincidencias.length === 1
+  ) {
+    return coincidencias[0];
+  }
+
+  return null;
+}
+
+function buscarActivo(registros, persona, hostal) {
+  return elegirCoincidencia(
+    candidatosPorIdentidad(registros, persona, true),
+    persona,
+    hostal
   );
 }
 
 function buscarPorIdentidad(registros, persona, hostal) {
-  const coincidencias = registros.filter((h) =>
-    nombresCoinciden(h.nombre, persona.nombre)
-  );
-
-  return (
-    coincidencias.find((h) => h.hostal === hostal) ||
-    (coincidencias.length === 1 ? coincidencias[0] : null)
+  return elegirCoincidencia(
+    candidatosPorIdentidad(registros, persona, false),
+    persona,
+    hostal
   );
 }
 
@@ -259,7 +299,13 @@ function mismaEstancia(huesped, persona, hostal, estanciaId) {
     ) ||
     (
       huesped.hostal === hostal &&
-      nombresCoinciden(huesped.nombre, persona.nombre)
+      nombresCoinciden(huesped.nombre, persona.nombre) &&
+      (
+        !fechaNacimientoNormalizada(huesped.fnac) ||
+        !fechaNacimientoNormalizada(persona.fnac) ||
+        fechaNacimientoNormalizada(huesped.fnac) ===
+          fechaNacimientoNormalizada(persona.fnac)
+      )
     )
   );
 }
