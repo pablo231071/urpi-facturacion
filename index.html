@@ -570,14 +570,22 @@ function incorporarFestivosOficiales(){
   localStorage.setItem(festKey(),JSON.stringify(S.festivos));
 }
 
-const NUMERO_FACTURA_INICIAL_POR_QUINCENA={'2026_10_1':3961};
+const NUMERO_FACTURA_INICIAL_POR_QUINCENA={
+  '2026_10_1':3961,
+  '2026_10_2':3974
+};
 function facturaKey(){return `urpi_factura_inicial_${qKey()}`;}
 function cargarNumeroFacturaPeriodo(){
   const el=document.getElementById('cfgNum');if(!el)return;
   const guardado=parseInt(localStorage.getItem(facturaKey()));
   const sugerido=NUMERO_FACTURA_INICIAL_POR_QUINCENA[qKey()];
-  if(Number.isFinite(guardado))el.value=guardado;
-  else if(Number.isFinite(sugerido))el.value=sugerido;
+  // Migra el número guardado antes de conocer la numeración real de la
+  // segunda quincena de octubre. Después se respetan los cambios manuales.
+  const numeroAntiguoOctubre2=qKey()==='2026_10_2'&&guardado===3961;
+  if(Number.isFinite(sugerido)&&(!Number.isFinite(guardado)||numeroAntiguoOctubre2)){
+    el.value=sugerido;
+    localStorage.setItem(facturaKey(),String(sugerido));
+  }else if(Number.isFinite(guardado))el.value=guardado;
 }
 function guardarNumeroFacturaPeriodo(){
   const valor=parseInt(document.getElementById('cfgNum')?.value);
@@ -773,20 +781,24 @@ function nombreFactura(h){
   const tipo=tipoH(h?.fnac,h);
   if(tipo==='adulto')return base;
   const e=edadParaSnack(h,S.qFin||new Date());
-  return Number.isFinite(e)?`${base} (${e} años)`:base;
+  return Number.isFinite(e)?`${base} (${e} ${e===1?'año':'años'})`:base;
 }
 function edadParaSnack(h,ref){
   if(!h)return null;
-  if(!h.fnac&&h.tipoManual==='bebe')return 2;
-  if(!h.fnac&&h.tipoManual==='adulto')return 18;
   if(h.fnac){const e=edad(h.fnac,ref);return Number.isFinite(e)?e:null;}
+  const edadEnNombre=String(h.nombre||'').match(/\(\s*(\d{1,3})\s*a[ñn]os?\s*\)\s*$/i);
+  if(edadEnNombre){const e=Number(edadEnNombre[1]);if(Number.isFinite(e)&&e>=0&&e<=120)return e;}
+  if(h.tipoManual==='bebe')return 2;
+  if(h.tipoManual==='adulto')return 18;
   const e=Number(h.ageN);
   if(Number.isFinite(e)&&e>=0)return e;
   if(h.tipoManual==='menor')return 17;
   return null;
 }
-function esDiaLectivoSnack(d,h){
-  const e=edadParaSnack(h,d);
+function esDiaLectivoSnack(d,h,edadReferencia){
+  const e=Number.isFinite(edadReferencia)
+    ?edadReferencia
+    :edadParaSnack(h,S.qFin||d);
   if(e===null||e<3||e>17)return false;
   if(d.getFullYear()===2026&&d.getMonth()===8){
     const diaInicio=e<=11?9:e<=15?10:11;
@@ -805,10 +817,15 @@ function calcLectivos(ini,fin,h){
     ?new Date(qIni)
     :new Date(entNorm.getFullYear(),entNorm.getMonth(),entNorm.getDate()+1);
   const hasta=norm(new Date(Math.min(fin.getTime(),S.qFin.getTime())));
+  // La edad que determina si corresponde snack se toma al final de la
+  // estancia facturada. Así un menor que cumple 3 años durante la quincena
+  // conserva todos los días lectivos de ese periodo, como en la factura CEAR.
+  const edadReferencia=edadParaSnack(h,hasta);
+  if(edadReferencia===null||edadReferencia<3||edadReferencia>17)return 0;
   let n=0;const d=new Date(desdeDate);
   while(d<=hasta){
     const dow=d.getDay(),iso=fmtISO(d);
-    if(dow!==0&&dow!==6&&!S.festivos.includes(iso)&&esDiaLectivoSnack(d,h))n++;
+    if(dow!==0&&dow!==6&&!S.festivos.includes(iso)&&esDiaLectivoSnack(d,h,edadReferencia))n++;
     d.setDate(d.getDate()+1);
   }
   return n;
@@ -1489,6 +1506,24 @@ function calcDias(h){
     :new Date(ini);
   return{dias,ini,fin};
 }
+function calcDiasAlojamiento(h,ini,fin,dias){
+  if(h.sinAlojamiento||!dias)return 0;
+
+  // Sin fecha de nacimiento se respeta el tipo manual importado.
+  if(!h.fnac)return tipoH(h.fnac,h)==='bebe'?0:dias;
+
+  // El alojamiento comienza a cobrarse el día exacto en que cumple 3 años.
+  // Se calcula noche a noche para no cobrar como menor toda la quincena a
+  // quien todavía era bebé durante una parte del periodo.
+  let facturables=0;
+  const d=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate());
+  const ultimo=new Date(fin.getFullYear(),fin.getMonth(),fin.getDate());
+  while(d<=ultimo){
+    if(edad(h.fnac,d)>=3)facturables++;
+    d.setDate(d.getDate()+1);
+  }
+  return facturables;
+}
 function getTarifas(){
   return{
     tar:parseFloat(document.getElementById('cfgTar')?.value||(usaTarifasSeptiembre2026()?43.58:40)),
@@ -1502,7 +1537,8 @@ function calcImp(h){
   const{tar,pMin,pSnack,pPicnic,igicPct}=getTarifas();
   const{dias,ini,fin}=calcDias(h);
   const t=tipoH(h.fnac,h);const bebe=t==='bebe',menor=t==='menor';
-  const aloj=(bebe||h.sinAlojamiento)?0:dias*tar;
+  const alojDias=calcDiasAlojamiento(h,ini,fin,dias);
+  const aloj=alojDias*tar;
   // Min Iniciación: siempre manual (h.minDias)
   const minDiasCalc=h.minDias||0;
   const minI=minDiasCalc*pMin;
@@ -1522,7 +1558,7 @@ function calcImp(h){
   const igicSinPicnic=Math.round(baseSinPicnic*igicPct*100)/100;
   const igicPicnic=Math.round(picnic*igicPct*100)/100;
   const igic=Math.round((igicSinPicnic+igicPicnic)*100)/100;
-  return{dias,ini,fin,aloj,min:minI,snack:snackI,picnic,baseSinPicnic,base,igicSinPicnic,igicPicnic,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
+  return{dias,alojDias,ini,fin,aloj,min:minI,snack:snackI,picnic,baseSinPicnic,base,igicSinPicnic,igicPicnic,igic,total:Math.round((base+igic)*100)/100,bebe,menor,snackDias,minDias:minDiasCalc};
 }
 function esFacturableEnPeriodo(h){
   const i=calcImp(h);
@@ -1966,8 +2002,8 @@ async function generarExcel(){
     mg(ws,r,2,r,7);
     wc(2,nombreFactura(h),'left');
     wc(8,tipo,'center');
-    wc(9,fmtD(imp.ini),'center');
-    wc(10,fmtD(imp.fin),'center');
+    wc(9,new Date(imp.ini),'center','dd/mm/yyyy');
+    wc(10,new Date(imp.fin),'center','dd/mm/yyyy');
     wc(11,imp.dias,'center');
     wc(12,imp.aloj,'center','#,##0.00 €');
     if(imp.minDias){wc(13,imp.minDias,'center');wc(14,Math.round(imp.minDias*pMin*100)/100,'center','#,##0.00 €');}
@@ -1994,7 +2030,7 @@ async function generarExcel(){
 
     const fechaPicnic=h.fechaSalida?pd(h.fechaSalida):new Date(imp.fin.getFullYear(),imp.fin.getMonth(),imp.fin.getDate()+1);
     wc(1,num,'center');mg(ws,r,2,r,7);wc(2,nombreFactura(h),'left');
-    wc(8,tipo,'center');wc(9,fmtD(fechaPicnic),'center');wc(10,fmtD(fechaPicnic),'center');
+    wc(8,tipo,'center');wc(9,new Date(fechaPicnic),'center','dd/mm/yyyy');wc(10,new Date(fechaPicnic),'center','dd/mm/yyyy');
     wc(11,0,'center');wc(12,0,'center','#,##0.00 €');
     wc(17,1,'center');wc(18,pb,'center','#,##0.00 €');
     wc(19,pb,'center','#,##0.00 €');wc(20,pi,'center','#,##0.00 €');wc(21,pt,'center','#,##0.00 €');
@@ -2067,7 +2103,7 @@ async function generarExcel(){
     const nf=`${numFact}-${anoFact}`;
     let cur=writeHeader(ws,1,hostal,nf,fmt(S.qFin),per,mes,email,tel);
     let baseTot=0;let num=1;
-    const ROWS_PER_PAGE=14;
+    const ROWS_PER_PAGE=17;
     let rowsEnPagina=0; // contador de filas de datos en la página actual
 
     for(const h of hs){
