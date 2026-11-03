@@ -785,9 +785,12 @@ function nombreFactura(h){
 }
 function edadParaSnack(h,ref){
   if(!h)return null;
-  if(h.fnac){const e=edad(h.fnac,ref);return Number.isFinite(e)?e:null;}
+  // Una edad escrita expresamente en la ficha procede de la revisión manual
+  // de la factura y prevalece para la etiqueta y el snack. La fecha de
+  // nacimiento sigue gobernando el alojamiento noche a noche.
   const edadEnNombre=String(h.nombre||'').match(/\(\s*(\d{1,3})\s*a[ñn]os?\s*\)\s*$/i);
   if(edadEnNombre){const e=Number(edadEnNombre[1]);if(Number.isFinite(e)&&e>=0&&e<=120)return e;}
+  if(h.fnac){const e=edad(h.fnac,ref);return Number.isFinite(e)?e:null;}
   if(h.tipoManual==='bebe')return 2;
   if(h.tipoManual==='adulto')return 18;
   const e=Number(h.ageN);
